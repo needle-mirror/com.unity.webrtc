@@ -14,7 +14,7 @@ using Unity.WebRTC;
 
 ### 初期化
 
-`WebRTC` の利用時には初期化を行うために、 `WebRTC.Initialize()`を呼び出してください。また、終了時には `WebRTC.Finalize()` を呼び出します。
+`WebRTC` の利用時には初期化を行うために、 `WebRTC.Initialize()`を呼び出します。終了時には `WebRTC.Finalize()` を呼び出します。
 
 ```CSharp
 public class MyPlayerScript : MonoBehaviour
@@ -23,6 +23,20 @@ public class MyPlayerScript : MonoBehaviour
     {
         // Initialize WebRTC
         WebRTC.Initialize();
+    }
+}
+```
+
+デフォルトではエンコーダーはハードウェアを使用します。ハードウェアエンコーダーではなく、ソフトウェアエンコーダーを使用する場合、初期化時に `EncoderType.Software` を指定します。
+初期化後にエンコーダーを変更することはできません。
+
+```CSharp
+public class MyPlayerScript : MonoBehaviour
+{
+    private void Awake()
+    {
+        // Initialize WebRTC with software encoder
+        WebRTC.Initialize(EncoderType.Software);
     }
 }
 ```
@@ -51,7 +65,7 @@ public class MyPlayerScript : MonoBehaviour
 
 ### 通信経路候補の登録
 
-ピアの接続を行うために、ICE (Interactive Connectivity Establishment) の交換が必要になります。各ピアで通信経路候補が発見されたら、 `OnIceCandidate` が呼び出されます。各ピアのにコールバックで `AddIceCandidate` を呼び出して経路候補の登録を行います。
+ピアの接続を行うために、ICE (Interactive Connectivity Establishment) の交換が必要になります。各ピアで通信経路候補が発見されたら、 `OnIceCandidate` が呼び出されます。各ピアのコールバックで `AddIceCandidate` を呼び出して経路候補の登録を行います。
 
 
 ```CSharp
@@ -63,11 +77,11 @@ remoteConnection.OnIceCandidate = e => { !string.IsNullOrEmpty(e.candidate)
 
 ```
 
-### シグナリング処理
+### シグナリング処理の流れ
 
-ピア間で SDP の交換を行います。最初に `CreateOffer` でオファーSDP を作成します。オファーSDP を取得後、ローカルピアとリモートピアの双方に SDP を設定します。このとき `SetLocalDescription` と `SetRemoteDescription` を取り違えないよう気をつけてください。
+ピア間で SDP の交換を行います。最初に `CreateOffer` でオファー SDP を作成します。オファー SDP を取得後、ローカルピアとリモートピアの双方に SDP を設定します。このとき `SetLocalDescription` と `SetRemoteDescription` を取り違えないよう気をつけてください。
 
-オファー SDP の設定が完了したら、 `CreateAnswer` を呼び出してアンサー SDP を作成します。オファーSDP と同様に、アンサー SDP もローカルピアとリモートピアの双方に設定します。
+オファー SDP の設定が完了したら、 `CreateAnswer` を呼び出してアンサー SDP を作成します。オファー SDP と同様に、アンサー SDP もローカルピアとリモートピアの双方に設定します。
 
 ```csharp
 var op1 = localConnection.CreateOffer();
@@ -152,4 +166,73 @@ private void OnDestroy()
   WebRTC.Finalize();
 }
 ```
+
+### オーディオストリーミング
+
+オーディオをストリーミングするためには、はじめにストリームのインスタンスを取得します。`Audio.CaptureStream()` を呼び出してください。
+
+```csharp
+audioStream = Audio.CaptureStream();
+```
+
+ピアにメディアトラックを追加します。`RTCRtpSender` のインスタンスは、メディアを破棄する際に利用します。
+
+```csharp
+    var senders = new List<RTCRtpSender>();
+    foreach (var track in audioStream.GetTracks())
+    {
+        var sender = localConnection.AddTrack(track);
+        senders.Add(sender);
+    }
+```
+
+メディアの破棄は、 `RemoveTrack` メソッドを使用します。
+
+```csharp
+    foreach(var sender in senders)
+    {
+        localConnection.RemoveTrack(sender);
+    }
+```
+
+`MonoBehaviour` の `OnAudioFilterRead` メソッド内で、`Audio` の `Update` メソッドを呼び出してください。
+
+```csharp
+    private void OnAudioFilterRead(float[] data, int channels)
+    {
+        Audio.Update(data, data.Length);
+    }
+```
+
+> [!NOTE]
+> `OnAudioFilterRead` メソッドを利用する場合は、 `AudioListener` コンポーネントと同じ GameObject に関連付ける必要があります。
+
+あるいは、`AudioRenderer` を利用する方法もあります。
+
+```csharp
+
+    private void Start()
+    {
+        AudioRenderer.Start();
+    }
+
+    private void Update()
+    {
+        var sampleCountFrame = AudioRenderer.GetSampleCountForCaptureFrame();
+        var channelCount = 2; // AudioSettings.speakerMode == Stereo
+        var length = sampleCountFrame * channelCount;
+        var buffer = new NativeArray<float>(length, Allocator.Temp);
+        AudioRenderer.Render(buffer);
+        Audio.Update(buffer.ToArray(), buffer.Length);
+        buffer.Dispose();
+    }
+
+```
+
+### ビデオストリーミング
+
+`MediaStream` を使ってビデオストリームをキャプチャするために、`Camera` の `CaptureStream()` を呼び出します。
+
+
+
 

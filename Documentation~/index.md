@@ -1,47 +1,55 @@
-# WebRTC
+# WebRTC 
 
-- [Japanese](./jp/index.md)
+![WebRTC header](images/webrtc_header.png)
 
-**WebRTC for Unity** is a package that allows [WebRTC](https://webrtc.org) to be used in Unity.
+## What is WebRTC
 
-If you are interested in the streaming solution with WebRTC, you can check [Unity Render Streaming](https://github.com/Unity-Technologies/UnityRenderStreaming). 
-
-## Guide
-
-* [Tutorial](./en/tutorial.md)
-
-## Installation
-To install the package, download WebRTC for Unity from the package manager. See the [documentation](https://docs.unity3d.com/Packages/com.unity.package-manager-ui@latest/index.html) for details on how to use the package manager. 
-
-<img src="./images/webrtc_package_manager.png" width=600 align=center>
-
-## Samples
-The package contains the following 3 samples. 
-
-| Scene       | Details                                 |
-| -------------- | ------------------------------------ |
-| PeerConnection | A scene for checking the process of connecting to a peer |
-| DataChannel    | A scene for sending and receiving text       |
-| MediaStream    | A scene for sending and receiving video/audio    |
+WebRTC for Unity is a package that allows [WebRTC](https://webrtc.org) to be used in Unity.
 
 ## Requirements
 
 This version of the package is compatible with the following versions of the Unity Editor:
 
-- 2019.1 and later (recommended)
+- **Unity 2019.3**
 
-Currently the software only supports `windows64`.
+| Platform    | Graphics API | Hardware Encoder                                                                                                         | Software Encoder   |
+| ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------------ | ------------------ |
+| Windows x64 | DirectX11    | :white_check_mark: (Require [NVIDIA Graphics card](https://developer.nvidia.com/video-encode-decode-gpu-support-matrix)) | :white_check_mark: | 
+| Windows x64 | DirectX12    |                                                                                                                          |                    | 
+| Windows x64 | OpenGL       |                                                                                                                          |                    |
+| Windows x64 | Vulkan       |                                                                                                                          |                    | 
+| Linux x64   | OpenGL       | :white_check_mark: (Require [NVIDIA Graphics card](https://developer.nvidia.com/video-encode-decode-gpu-support-matrix)) |                    |
+| Linux x64   | Vulkan       |                                                 	                                                                        |                    |
+| MacOS       | OpenGL       |                                                 	                                                                        |                    |
+| MacOS       | Metal        |                                                 	                                                                        | :white_check_mark: |
 
-Graphics API version only supports `Direct3D11`.
+To check the compatible NVIDIA graphics card, please visit on the [NVIDIA VIDEO CODEC SDK web site](https://developer.nvidia.com/video-encode-decode-gpu-support-matrix#Encoder).
 
-`IL2CPP` is not supported in Scripting Backend by this package.
+> [!NOTE]
+> On Linux, `libc++1` `libc++abi1` packages should be installed.
+> Please install like command below 
+>
+> ``` sudo apt install -y libc++1 libc++abi1 ```
 
-## Limitations
+## Installation
+To install the package, download WebRTC for Unity from the package manager. See the [documentation](https://docs.unity3d.com/Manual/upm-ui.html) for details on how to use the package manager. 
 
-This package uses GPU hardware acceleration for video encoding, so it only runs on graphics cards that support [NVIDIA VIDEO CODEC SDK](https://developer.nvidia.com/nvidia-video-codec-sdk).
+![WebRTC Package Manager](images/webrtc_package_manager.png)
 
-## Update History
+## Samples
 
-|Date|Reason|
-|---|---|
-|June 21, 2019|Document Released|
+The package contains the following 3 samples. 
+
+| Scene          | Details                                                  |
+| -------------- | -------------------------------------------------------- |
+| PeerConnection | A scene for checking the process of connecting to a peer |
+| DataChannel    | A scene for sending and receiving text                   |
+| MediaStream    | A scene for sending and receiving video/audio            |
+
+To get these samples, Push the `Import into Project` button on Package Manager.
+
+![Download package sample](images/download_package_sample.png)
+
+## Other Languages
+
+- [Japanese](jp/index.md)

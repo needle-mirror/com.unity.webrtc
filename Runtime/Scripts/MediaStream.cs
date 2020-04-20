@@ -116,7 +116,7 @@ namespace Unity.WebRTC
         {
             self = ptr;
             WebRTC.Table.Add(self, this);
-            id = Marshal.PtrToStringAnsi(NativeMethods.MediaStreamGetID(self));
+            id = NativeMethods.MediaStreamGetID(self).AsAnsiStringWithFreeMem();
 
             WebRTC.Context.MediaStreamRegisterOnAddTrack(self, MediaStreamOnAddTrack);
             WebRTC.Context.MediaStreamRegisterOnRemoveTrack(self, MediaStreamOnRemoveTrack);
@@ -166,7 +166,7 @@ namespace Unity.WebRTC
             var rt = new RenderTexture(width, height, depthValue, format);
             rt.Create();
             cam.targetTexture = rt;
-            return new VideoStreamTrack(cam.name, rt, bitrate);
+            return new VideoStreamTrack(cam.name, rt);
         }
 
 

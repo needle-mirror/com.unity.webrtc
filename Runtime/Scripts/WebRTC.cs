@@ -438,7 +438,7 @@ namespace Unity.WebRTC
         [DllImport(WebRTC.Lib)]
         public static extern void ContextDeleteDataChannel(IntPtr ptr, IntPtr ptrChannel);
         [DllImport(WebRTC.Lib)]
-        public static extern IntPtr ContextCreateVideoTrack(IntPtr ptr, [MarshalAs(UnmanagedType.LPStr, SizeConst = 256)] string label, IntPtr rt, int width, int height, int bitRate);
+        public static extern IntPtr ContextCreateVideoTrack(IntPtr ptr, [MarshalAs(UnmanagedType.LPStr, SizeConst = 256)] string label, IntPtr texturePtr);
         [DllImport(WebRTC.Lib)]
         public static extern IntPtr ContextCreateAudioTrack(IntPtr ptr, [MarshalAs(UnmanagedType.LPStr, SizeConst = 256)] string label);
         [DllImport(WebRTC.Lib)]
@@ -448,7 +448,7 @@ namespace Unity.WebRTC
         [DllImport(WebRTC.Lib)]
         public static extern void ContextSetVideoEncoderParameter(IntPtr context, IntPtr track, int width, int height);
         [DllImport(WebRTC.Lib)]
-        public static extern void PeerConnectionGetConfiguration(IntPtr ptr, ref IntPtr conf, ref int len);
+        public static extern IntPtr PeerConnectionGetConfiguration(IntPtr ptr);
         [DllImport(WebRTC.Lib)]
         public static extern void PeerConnectionCreateOffer(IntPtr ptr, ref RTCOfferOptions options);
         [DllImport(WebRTC.Lib)]

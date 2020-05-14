@@ -12,25 +12,15 @@ namespace Unity.WebRTC
         private bool disposed;
         private IntPtr renderFunction;
 
-        public bool IsNull
-        {
-            get { return self == IntPtr.Zero; }
-        }
-
-        public static implicit operator bool(Context v)
-        {
-            return v.self != IntPtr.Zero;
-        }
-
-        public static bool ToBool(Context v)
-        {
-            return v;
-        }
-
         public static Context Create(int id = 0, EncoderType encoderType = EncoderType.Hardware)
         {
             var ptr = NativeMethods.ContextCreate(id, encoderType);
             return new Context(ptr, id);
+        }
+
+        public bool IsNull
+        {
+            get { return self == IntPtr.Zero; }
         }
 
         private Context(IntPtr ptr, int id)
@@ -71,7 +61,7 @@ namespace Unity.WebRTC
         {
             return NativeMethods.ContextGetCodecInitializationResult(self);
         }
-        
+
         public EncoderType GetEncoderType()
         {
             return NativeMethods.ContextGetEncoderType(self);
@@ -169,6 +159,11 @@ namespace Unity.WebRTC
         public void SetVideoEncoderParameter(IntPtr track, int width, int height)
         {
             NativeMethods.ContextSetVideoEncoderParameter(self, track, width, height);
+        }
+
+        public CodecInitializationResult GetInitializationResult(IntPtr track)
+        {
+            return NativeMethods.GetInitializationResult(self, track);
         }
 
         internal void InitializeEncoder(IntPtr track)

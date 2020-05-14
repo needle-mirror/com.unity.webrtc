@@ -229,8 +229,21 @@ namespace Unity.WebRTC
         private static SynchronizationContext s_syncContext;
         internal static Material flipMat;
 
+
+#if UNITY_EDITOR
+        static public void OnBeforeAssemblyReload()
+        {
+            Dispose();
+        }
+#endif
+
         public static void Initialize(EncoderType type = EncoderType.Hardware)
         {
+            // todo(kazuki): Add this event to avoid crash caused by hot-reload.
+            // Dispose of all before reloading assembly.
+#if UNITY_EDITOR
+            UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
+#endif
             if (Application.platform != RuntimePlatform.LinuxEditor &&
                 Application.platform != RuntimePlatform.LinuxPlayer)
             {
@@ -275,10 +288,17 @@ namespace Unity.WebRTC
 
         public static void Dispose()
         {
-            s_context.Dispose();
-            s_context = null;
+            if (s_context != null)
+            {
+                s_context.Dispose();
+                s_context = null;
+            }
             s_syncContext = null;
             NativeMethods.RegisterDebugLog(null);
+
+#if UNITY_EDITOR
+            UnityEditor.AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeAssemblyReload;
+#endif
         }
 
         class CallbackObject
@@ -466,6 +486,8 @@ namespace Unity.WebRTC
         [DllImport(WebRTC.Lib)]
         public static extern void ContextSetVideoEncoderParameter(IntPtr context, IntPtr track, int width, int height);
         [DllImport(WebRTC.Lib)]
+        public static extern CodecInitializationResult GetInitializationResult(IntPtr context, IntPtr track);
+        [DllImport(WebRTC.Lib)]
         public static extern IntPtr PeerConnectionGetConfiguration(IntPtr ptr);
         [DllImport(WebRTC.Lib)]
         public static extern void PeerConnectionCreateOffer(IntPtr ptr, ref RTCOfferOptions options);
@@ -599,6 +621,7 @@ namespace Unity.WebRTC
         public static extern IntPtr GetRenderEventFunc(IntPtr context);
         [DllImport(WebRTC.Lib)]
         public static extern void ProcessAudio(float[] data, int size);
+
     }
 
     internal static class VideoEncoderMethods

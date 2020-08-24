@@ -23,14 +23,54 @@ namespace Unity.WebRTC
                 }
                 else
                 {
-                    return true;  
-                }   
+                    return true;
+                }
             }
         }
 
         internal void Done()
         {
             IsDone = true;
+        }
+    }
+
+    public class RTCStatsReportAsyncOperation : AsyncOperationBase
+    {
+        public RTCStatsReport Value { get; private set; }
+
+        internal RTCStatsReportAsyncOperation(RTCPeerConnection connection)
+        {
+            NativeMethods.PeerConnectionGetStats(connection.self);
+
+            connection.OnStatsDelivered = ptr =>
+            {
+                Value = new RTCStatsReport(ptr);
+                IsError = false;
+                this.Done();
+            };
+        }
+
+        internal RTCStatsReportAsyncOperation(RTCPeerConnection connection, RTCRtpSender sender)
+        {
+            NativeMethods.PeerConnectionSenderGetStats(connection.self, sender.self);
+
+            connection.OnStatsDelivered = ptr =>
+            {
+                Value = new RTCStatsReport(ptr);
+                IsError = false;
+                this.Done();
+            };
+        }
+        internal RTCStatsReportAsyncOperation(RTCPeerConnection connection, RTCRtpReceiver receiver)
+        {
+            NativeMethods.PeerConnectionReceiverGetStats(connection.self, receiver.self);
+
+            connection.OnStatsDelivered = ptr =>
+            {
+                Value = new RTCStatsReport(ptr);
+                IsError = false;
+                this.Done();
+            };
         }
     }
 
@@ -48,9 +88,10 @@ namespace Unity.WebRTC
                 IsError = false;
                 this.Done();
             };
-            connection.OnSetSessionDescriptionFailure = () =>
+            connection.OnSetSessionDescriptionFailure = (error) =>
             {
                 IsError = true;
+                Error = error;
                 this.Done();
             };
         }

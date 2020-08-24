@@ -275,6 +275,34 @@ public class DataChannelSample : MonoBehaviour
         }
     }
 
+    IEnumerator LoopGetStats()
+    {
+        while (true)
+        {
+            yield return new WaitForSeconds(1f);
+
+            if (!sendButton.interactable)
+                continue;
+
+            var op1 = pc1.GetStats();
+            var op2 = pc2.GetStats();
+
+            yield return op1;
+            yield return op2;
+
+            Debug.Log("pc1");
+            foreach (var stat in op1.Value.Stats.Values)
+            {
+                Debug.Log(stat.Type.ToString());
+            }
+            Debug.Log("pc2");
+            foreach (var stat in op2.Value.Stats.Values)
+            {
+                Debug.Log(stat.Type.ToString());
+            }
+        }
+    }
+
     void OnAddIceCandidateSuccess(RTCPeerConnection pc)
     {
         Debug.Log($"{GetName(pc)} addIceCandidate success");

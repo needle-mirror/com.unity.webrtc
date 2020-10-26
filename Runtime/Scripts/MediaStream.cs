@@ -31,7 +31,6 @@ namespace Unity.WebRTC
         ~MediaStream()
         {
             this.Dispose();
-            WebRTC.Table.Remove(self);
         }
 
         public void Dispose()
@@ -43,6 +42,7 @@ namespace Unity.WebRTC
             if(self != IntPtr.Zero && !WebRTC.Context.IsNull)
             {
                 WebRTC.Context.DeleteMediaStream(this);
+                WebRTC.Table.Remove(self);
                 self = IntPtr.Zero;
             }
             this.disposed = true;
@@ -144,67 +144,6 @@ namespace Unity.WebRTC
                     stream.onRemoveTrack?.Invoke(new MediaStreamTrackEvent(track));
                 }
             });
-        }
-    }
-
-    public static class CameraExtension
-    {
-        public static VideoStreamTrack CaptureStreamTrack(this Camera cam, int width, int height, int bitrate, RenderTextureDepth depth = RenderTextureDepth.DEPTH_24)
-        {
-            switch (depth)
-            {
-                case RenderTextureDepth.DEPTH_16:
-                case RenderTextureDepth.DEPTH_24:
-                case RenderTextureDepth.DEPTH_32:
-                    break;
-                default:
-                    throw new InvalidEnumArgumentException(nameof(depth), (int)depth, typeof(RenderTextureDepth));
-            }
-
-            int depthValue = (int)depth;
-            var format = WebRTC.GetSupportedRenderTextureFormat(SystemInfo.graphicsDeviceType);
-            var rt = new RenderTexture(width, height, depthValue, format);
-            rt.Create();
-            cam.targetTexture = rt;
-            return new VideoStreamTrack(cam.name, rt);
-        }
-
-
-        public static MediaStream CaptureStream(this Camera cam, int width, int height, int bitrate, RenderTextureDepth depth = RenderTextureDepth.DEPTH_24)
-        {
-            var stream = new MediaStream(WebRTC.Context.CreateMediaStream("videostream"));
-            var track = cam.CaptureStreamTrack(width, height, bitrate, depth);
-            stream.AddTrack(track);
-            return stream;
-        }
-    }
-
-    public static class Audio
-    {
-        private static bool started;
-        public static MediaStream CaptureStream()
-        {
-            started = true;
-
-            var stream = new MediaStream(WebRTC.Context.CreateMediaStream("audiostream"));
-            var track = new MediaStreamTrack(WebRTC.Context.CreateAudioTrack("audio"));
-            stream.AddTrack(track);
-            return stream;
-        }
-
-        public static void Update(float[] audioData, int channels)
-        {
-            if (started)
-            {
-                NativeMethods.ProcessAudio(audioData, audioData.Length);
-            }
-        }
-        public static void Stop()
-        {
-            if (started)
-            {
-                started = false;
-            }
         }
     }
 }

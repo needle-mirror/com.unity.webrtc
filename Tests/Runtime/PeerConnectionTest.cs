@@ -1,8 +1,10 @@
+using System;
 using UnityEngine;
 using UnityEngine.TestTools;
 using NUnit.Framework;
 using System.Collections;
 using System.Linq;
+using Object = UnityEngine.Object;
 
 namespace Unity.WebRTC.RuntimeTest
 {
@@ -118,13 +120,53 @@ namespace Unity.WebRTC.RuntimeTest
             Assert.IsNotEmpty(parameters.TransactionId);
             Assert.AreEqual(1, peer.GetTransceivers().Count());
             Assert.NotNull(peer.GetTransceivers().First());
+
+            track.Dispose();
+            stream.Dispose();
+            peer.Dispose();
         }
 
+        [Test]
+        [Category("PeerConnection")]
+        public void AddTransceiverTrackKindAudio()
+        {
+            var peer = new RTCPeerConnection();
+            var transceiver = peer.AddTransceiver(TrackKind.Audio);
+            Assert.NotNull(transceiver);
+            Assert.That(() => Assert.NotNull(transceiver.CurrentDirection), Throws.InvalidOperationException);
+            RTCRtpReceiver receiver = transceiver.Receiver;
+            Assert.NotNull(receiver);
+            MediaStreamTrack track = receiver.Track;
+            Assert.NotNull(track);
+            Assert.AreEqual(TrackKind.Audio, track.Kind);
+            Assert.True(track is AudioStreamTrack);
+
+            Assert.AreEqual(1, peer.GetTransceivers().Count());
+            Assert.NotNull(peer.GetTransceivers().First());
+        }
+
+        [Test]
+        [Category("PeerConnection")]
+        public void AddTransceiverTrackKindVideo()
+        {
+            var peer = new RTCPeerConnection();
+            var transceiver = peer.AddTransceiver(TrackKind.Video);
+            Assert.NotNull(transceiver);
+            Assert.That(() => Assert.NotNull(transceiver.CurrentDirection), Throws.InvalidOperationException);
+            RTCRtpReceiver receiver = transceiver.Receiver;
+            Assert.NotNull(receiver);
+            MediaStreamTrack track = receiver.Track;
+            Assert.NotNull(track);
+            Assert.AreEqual(TrackKind.Video, track.Kind);
+            Assert.True(track is VideoStreamTrack);
+
+            Assert.AreEqual(1, peer.GetTransceivers().Count());
+            Assert.NotNull(peer.GetTransceivers().First());
+        }
 
         [UnityTest]
         [Timeout(1000)]
         [Category("PeerConnection")]
-
         public IEnumerator CreateOffer()
         {
             var config = GetConfiguration();
@@ -143,7 +185,6 @@ namespace Unity.WebRTC.RuntimeTest
         [UnityTest]
         [Timeout(1000)]
         [Category("PeerConnection")]
-
         public IEnumerator CreateAnswerFailed()
         {
             var config = GetConfiguration();
@@ -154,8 +195,9 @@ namespace Unity.WebRTC.RuntimeTest
             yield return op;
             Assert.True(op.IsDone);
 
-            // This is failed 
+            // This is failed
             Assert.True(op.IsError);
+            Assert.IsNotEmpty(op.Error.message);
 
             peer.Close();
             peer.Dispose();
@@ -197,7 +239,6 @@ namespace Unity.WebRTC.RuntimeTest
         [UnityTest]
         [Timeout(1000)]
         [Category("PeerConnection")]
-
         public IEnumerator SetLocalDescription()
         {
             var peer = new RTCPeerConnection();
@@ -218,6 +259,20 @@ namespace Unity.WebRTC.RuntimeTest
             Assert.AreEqual(desc.type, desc2.type);
 
             peer.Close();
+            peer.Dispose();
+        }
+
+        [Test]
+        [Category("PeerConnection")]
+        public void SetLocalDescriptionThrowException()
+        {
+            var peer = new RTCPeerConnection();
+            RTCSessionDescription empty = new RTCSessionDescription();
+            Assert.Throws<ArgumentException>(() => peer.SetLocalDescription(ref empty));
+
+            RTCSessionDescription invalid = new RTCSessionDescription { sdp = "this is invalid parameter" };
+            Assert.Throws<RTCErrorException>(() => peer.SetLocalDescription(ref invalid));
+
             peer.Dispose();
         }
 
@@ -255,6 +310,88 @@ namespace Unity.WebRTC.RuntimeTest
             Assert.AreEqual(desc.type, desc2.type);
 
             channel1.Dispose();
+            peer1.Close();
+            peer2.Close();
+            peer1.Dispose();
+            peer2.Dispose();
+        }
+
+        [Test]
+        [Category("PeerConnection")]
+        public void SetRemoteDescriptionThrowException()
+        {
+            var peer = new RTCPeerConnection();
+            RTCSessionDescription empty = new RTCSessionDescription();
+            Assert.Throws<ArgumentException>(() => peer.SetRemoteDescription(ref empty));
+
+            RTCSessionDescription invalid = new RTCSessionDescription { sdp = "this is invalid parameter" };
+            Assert.Throws<RTCErrorException>(() => peer.SetRemoteDescription(ref invalid));
+
+            peer.Dispose();
+        }
+
+
+        [UnityTest]
+        [Timeout(1000)]
+        [Category("PeerConnection")]
+        public IEnumerator SetLocalDescriptionFailed()
+        {
+            var peer = new RTCPeerConnection();
+            var stream = new MediaStream();
+            var track = new AudioStreamTrack("audio");
+            var sender = peer.AddTrack(track, stream);
+
+            RTCOfferOptions options = default;
+            var op = peer.CreateOffer(ref options);
+            yield return op;
+            Assert.True(op.IsDone);
+            Assert.False(op.IsError);
+            var desc = op.Desc;
+            // change sdp to cannot parse
+            desc.sdp = desc.sdp.Replace("m=audio", "m=audiable");
+            var op2 = peer.SetLocalDescription(ref desc);
+            yield return op2;
+            Assert.True(op2.IsDone);
+            Assert.True(op2.IsError);
+            Assert.IsNotEmpty(op2.Error.message);
+
+            peer.RemoveTrack(sender);
+            track.Dispose();
+            stream.Dispose();
+            peer.Close();
+            peer.Dispose();
+        }
+
+        [UnityTest]
+        [Timeout(1000)]
+        [Category("PeerConnection")]
+        public IEnumerator SetRemoteDescriptionFailed()
+        {
+            var config = GetConfiguration();
+            var peer1 = new RTCPeerConnection(ref config);
+            var peer2 = new RTCPeerConnection(ref config);
+
+            var stream = new MediaStream();
+            var track = new AudioStreamTrack("audio");
+            var sender = peer1.AddTrack(track, stream);
+
+            RTCOfferOptions options1 = default;
+            var op1 = peer1.CreateOffer(ref options1);
+            yield return op1;
+            var desc = op1.Desc;
+            var op2 = peer1.SetLocalDescription(ref desc);
+            yield return op2;
+            // change sdp to cannot parse
+            desc.sdp = desc.sdp.Replace("m=audio", "m=audiable");
+            var op3 = peer2.SetRemoteDescription(ref desc);
+            yield return op3;
+            Assert.True(op3.IsDone);
+            Assert.True(op3.IsError);
+            Assert.IsNotEmpty(op3.Error.message);
+
+            peer1.RemoveTrack(sender);
+            track.Dispose();
+            stream.Dispose();
             peer1.Close();
             peer2.Close();
             peer1.Dispose();
@@ -339,7 +476,6 @@ namespace Unity.WebRTC.RuntimeTest
                 foreach (var pair in stats.Dict)
                 {
                     Assert.IsNotEmpty(pair.Key);
-                    Assert.NotNull(pair.Value);
                 }
                 StatsCheck.Test(stats);
             }

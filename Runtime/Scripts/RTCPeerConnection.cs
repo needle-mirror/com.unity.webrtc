@@ -42,7 +42,6 @@ namespace Unity.WebRTC
         ~RTCPeerConnection()
         {
             this.Dispose();
-            WebRTC.Table.Remove(self);
         }
 
         /// <summary>
@@ -59,6 +58,7 @@ namespace Unity.WebRTC
             {
                 Close();
                 WebRTC.Context.DeletePeerConnection(self);
+                WebRTC.Table.Remove(self);
                 self = IntPtr.Zero;
             }
 
@@ -205,7 +205,7 @@ namespace Unity.WebRTC
         /// <summary>
         ///
         /// </summary>
-        /// <seealso cref="RTCIceCandidate​"/>
+        /// <seealso cref="RTCIceCandidate"/>
         public DelegateOnIceCandidate OnIceCandidate
         {
             private get => onIceCandidate;
@@ -491,6 +491,11 @@ namespace Unity.WebRTC
             return new RTCRtpTransceiver(NativeMethods.PeerConnectionAddTransceiver(self, track.self), this);
         }
 
+        public RTCRtpTransceiver AddTransceiver(TrackKind kind)
+        {
+            return new RTCRtpTransceiver(NativeMethods.PeerConnectionAddTransceiverWithType(self, kind), this);
+        }
+
         /// <summary>
         ///
         /// </summary>
@@ -556,30 +561,86 @@ namespace Unity.WebRTC
         }
 
         [AOT.MonoPInvokeCallback(typeof(DelegateCreateSDFailure))]
-        static void OnFailureCreateSessionDesc(IntPtr ptr)
+        static void OnFailureCreateSessionDesc(IntPtr ptr, RTCErrorType type, string message)
         {
             WebRTC.Sync(ptr, () =>
             {
                 if (WebRTC.Table[ptr] is RTCPeerConnection connection)
                 {
                     connection.m_opSessionDesc.IsError = true;
+                    connection.m_opSessionDesc.Error = new RTCError{errorType = type, message = message};
                     connection.m_opSessionDesc.Done();
                 }
             });
         }
 
         /// <summary>
-        ///
+        /// This method changes the session description
+        /// of the local connection to negotiate with other connections.
         /// </summary>
         /// <param name="desc"></param>
-        /// <returns></returns>
+        /// <returns>
+        /// An AsyncOperation which resolves with an <see cref="RTCSessionDescription"/>
+        /// object providing a description of the session.
+        /// </returns>
+        /// <exception cref="ArgumentException">
+        /// Thrown when an argument has an invalid value.
+        /// For example, when passed the sdp which is null or empty.
+        /// </exception>
+        /// <exception cref="RTCErrorException">
+        /// Thrown when an argument has an invalid value.
+        /// For example, when passed the sdp which is not be able to parse.
+        /// </exception>
         /// <seealso cref="LocalDescription"/>
         public RTCSetSessionDescriptionAsyncOperation SetLocalDescription(
             ref RTCSessionDescription desc)
         {
+            if(string.IsNullOrEmpty(desc.sdp))
+                throw new ArgumentException("sdp is null or empty");
+
             var op = new RTCSetSessionDescriptionAsyncOperation(this);
-            WebRTC.Context.PeerConnectionSetLocalDescription(self, ref desc);
-            return op;
+            RTCError error = WebRTC.Context.PeerConnectionSetLocalDescription(
+                self, ref desc);
+            if (error.errorType == RTCErrorType.None)
+            {
+                return op;
+            }
+            throw new RTCErrorException(ref error);
+        }
+
+
+        /// <summary>
+        /// This method changes the session description
+        /// of the remote connection to negotiate with local connections.
+        /// </summary>
+        /// <param name="desc"></param>
+        /// <returns>
+        /// An AsyncOperation which resolves with an <see cref="RTCSessionDescription"/>
+        /// object providing a description of the session.
+        /// </returns>
+        /// <exception cref="ArgumentException">
+        /// Thrown when an argument has an invalid value.
+        /// For example, when passed the sdp which is null or empty.
+        /// </exception>
+        /// <exception cref="RTCErrorException">
+        /// Thrown when an argument has an invalid value.
+        /// For example, when passed the sdp which is not be able to parse.
+        /// </exception>
+        /// <seealso cref="RemoteDescription"/>
+        public RTCSetSessionDescriptionAsyncOperation SetRemoteDescription(
+            ref RTCSessionDescription desc)
+        {
+            if (string.IsNullOrEmpty(desc.sdp))
+                throw new ArgumentException("sdp is null or empty");
+
+            var op = new RTCSetSessionDescriptionAsyncOperation(this);
+            RTCError error = WebRTC.Context.PeerConnectionSetRemoteDescription(
+                self, ref desc);
+            if (error.errorType == RTCErrorType.None)
+            {
+                return op;
+            }
+            throw new RTCErrorException(ref error);
         }
 
         /// <summary>
@@ -713,18 +774,6 @@ namespace Unity.WebRTC
             }
         }
 
-        /// <summary>
-        ///
-        /// </summary>
-        /// <param name="desc"></param>
-        /// <returns></returns>
-        public RTCSetSessionDescriptionAsyncOperation SetRemoteDescription(ref RTCSessionDescription desc)
-        {
-            var op = new RTCSetSessionDescriptionAsyncOperation(this);
-            WebRTC.Context.PeerConnectionSetRemoteDescription(self, ref desc);
-            return op;
-        }
-
         [AOT.MonoPInvokeCallback(typeof(DelegateNativePeerConnectionSetSessionDescSuccess))]
         static void OnSetSessionDescSuccess(IntPtr ptr)
         {
@@ -738,12 +787,13 @@ namespace Unity.WebRTC
         }
 
         [AOT.MonoPInvokeCallback(typeof(DelegateNativePeerConnectionSetSessionDescFailure))]
-        static void OnSetSessionDescFailure(IntPtr ptr, RTCError error)
+        static void OnSetSessionDescFailure(IntPtr ptr, RTCErrorType type, string message)
         {
             WebRTC.Sync(ptr, () =>
             {
                 if (WebRTC.Table[ptr] is RTCPeerConnection connection)
                 {
+                    RTCError error = new RTCError { errorType = type, message = message };
                     connection.OnSetSessionDescriptionFailure(error);
                 }
             });

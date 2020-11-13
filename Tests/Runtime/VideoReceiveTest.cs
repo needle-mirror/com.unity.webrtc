@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
@@ -47,6 +47,8 @@ namespace Unity.WebRTC.RuntimeTest
         // todo::Software encoder does not support yet on linux
         [UnityTest]
         [Timeout(5000)]
+        [ConditionalIgnore(ConditionalIgnore.Direct3D12,
+            "VideoStreamTrack.UpdateReceiveTexture is not supported on Direct3D12")]
         [UnityPlatform(exclude = new[] { RuntimePlatform.LinuxEditor, RuntimePlatform.LinuxPlayer })]
         public IEnumerator VideoReceive()
         {
@@ -59,7 +61,7 @@ namespace Unity.WebRTC.RuntimeTest
             var sendStream = new MediaStream();
             var receiveStream = new MediaStream();
             VideoStreamTrack receiveVideoTrack = null;
-            RenderTexture receiveImage = null;
+            Texture receiveImage = null;
             receiveStream.OnAddTrack = e =>
             {
                 if (e.Track is VideoStreamTrack track)

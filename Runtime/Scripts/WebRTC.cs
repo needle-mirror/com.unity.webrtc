@@ -4,7 +4,6 @@ using UnityEngine;
 using System.Threading;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 
@@ -370,6 +369,25 @@ namespace Unity.WebRTC
             return RenderTextureFormat.Default;
         }
 
+        public static GraphicsFormat GetSupportedGraphicsFormat(GraphicsDeviceType type)
+        {
+            switch (type)
+            {
+                case UnityEngine.Rendering.GraphicsDeviceType.Direct3D11:
+                case UnityEngine.Rendering.GraphicsDeviceType.Direct3D12:
+                    return GraphicsFormat.B8G8R8A8_SRGB;
+                case UnityEngine.Rendering.GraphicsDeviceType.Vulkan:
+                    return GraphicsFormat.R8G8B8A8_SRGB;
+                case UnityEngine.Rendering.GraphicsDeviceType.OpenGLCore:
+                case UnityEngine.Rendering.GraphicsDeviceType.OpenGLES2:
+                case UnityEngine.Rendering.GraphicsDeviceType.OpenGLES3:
+                    return GraphicsFormat.R8G8B8A8_SRGB;
+                case UnityEngine.Rendering.GraphicsDeviceType.Metal:
+                    return GraphicsFormat.B8G8R8A8_SRGB;
+            }
+            throw new ArgumentException("Graphics device type not supported");
+        }
+
         internal static IEnumerable<T> Deserialize<T>(IntPtr buf, int length, Func<IntPtr, T> constructor) where T : class
         {
             var array = new IntPtr[length];
@@ -514,7 +532,7 @@ namespace Unity.WebRTC
         [DllImport(WebRTC.Lib)]
         public static extern void ContextDeleteDataChannel(IntPtr ptr, IntPtr ptrChannel);
         [DllImport(WebRTC.Lib)]
-        public static extern IntPtr ContextCreateVideoTrack(IntPtr ptr, [MarshalAs(UnmanagedType.LPStr, SizeConst = 256)] string label, IntPtr texturePtr);
+        public static extern IntPtr ContextCreateVideoTrack(IntPtr ptr, [MarshalAs(UnmanagedType.LPStr, SizeConst = 256)] string label);
         [DllImport(WebRTC.Lib)]
         public static extern IntPtr ContextCreateAudioTrack(IntPtr ptr, [MarshalAs(UnmanagedType.LPStr, SizeConst = 256)] string label);
         [DllImport(WebRTC.Lib)]
@@ -524,7 +542,7 @@ namespace Unity.WebRTC
         [DllImport(WebRTC.Lib)]
         public static extern void ContextDeleteStatsReport(IntPtr context, IntPtr report);
         [DllImport(WebRTC.Lib)]
-        public static extern void ContextSetVideoEncoderParameter(IntPtr context, IntPtr track, int width, int height, GraphicsFormat format);
+        public static extern void ContextSetVideoEncoderParameter(IntPtr context, IntPtr track, int width, int height, GraphicsFormat format, IntPtr texturePtr);
         [DllImport(WebRTC.Lib)]
         public static extern CodecInitializationResult GetInitializationResult(IntPtr context, IntPtr track);
         [DllImport(WebRTC.Lib)]
@@ -776,6 +794,11 @@ namespace Unity.WebRTC
 
         public static void UpdateRendererTexture(IntPtr callback, Texture texture, uint rendererId)
         {
+            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D12)
+            {
+                throw new NotSupportedException(
+                    "CommandBuffer.IssuePluginCustomTextureUpdateV2 method is Direct3D12 is not supported ");
+            }
             _command.IssuePluginCustomTextureUpdateV2(callback, texture, rendererId);
             Graphics.ExecuteCommandBuffer(_command);
             _command.Clear();

@@ -10,7 +10,7 @@ namespace Unity.WebRTC.RuntimeTest
 {
     class PeerConnectionTest
     {
-        static RTCConfiguration GetConfiguration()
+        static RTCConfiguration GetDefaultConfiguration()
         {
             RTCConfiguration config = default;
             config.iceServers = new[]
@@ -23,6 +23,7 @@ namespace Unity.WebRTC.RuntimeTest
                     credentialType = RTCIceCredentialType.Password
                 }
             };
+            config.iceTransportPolicy = RTCIceTransportPolicy.All;
             return config;
         }
 
@@ -62,9 +63,9 @@ namespace Unity.WebRTC.RuntimeTest
 
         [Test]
         [Category("PeerConnection")]
-        public void ConstructWithConfig()
+        public void GetConfiguration()
         {
-            var config = GetConfiguration();
+            var config = GetDefaultConfiguration();
             var peer = new RTCPeerConnection(ref config);
 
             var config2 = peer.GetConfiguration();
@@ -74,6 +75,9 @@ namespace Unity.WebRTC.RuntimeTest
             Assert.AreEqual(config.iceServers[0].username, config2.iceServers[0].username);
             Assert.AreEqual(config.iceServers[0].credential, config2.iceServers[0].credential);
             Assert.AreEqual(config.iceServers[0].urls, config2.iceServers[0].urls);
+            Assert.AreEqual(config.iceTransportPolicy, config2.iceTransportPolicy);
+            Assert.AreEqual(config.iceCandidatePoolSize, config2.iceCandidatePoolSize);
+            Assert.AreEqual(config.bundlePolicy, config2.bundlePolicy);
 
             peer.Close();
             peer.Dispose();
@@ -89,7 +93,7 @@ namespace Unity.WebRTC.RuntimeTest
             // To specify TURN server, also needs `username` and `credential`.
             config.iceServers = new[]
             {
-                new RTCIceServer {  urls = new[] {"turn:127.0.0.1?transport=udp"} } 
+                new RTCIceServer {  urls = new[] {"turn:127.0.0.1?transport=udp"} }
             };
             Assert.That(() => { new RTCPeerConnection(ref config); }, Throws.ArgumentException);
         }
@@ -99,7 +103,7 @@ namespace Unity.WebRTC.RuntimeTest
         public void SetConfiguration()
         {
             var peer = new RTCPeerConnection();
-            var config = GetConfiguration();
+            var config = GetDefaultConfiguration();
             var result = peer.SetConfiguration(ref config);
             Assert.AreEqual(RTCErrorType.None, result);
             peer.Close();
@@ -116,15 +120,15 @@ namespace Unity.WebRTC.RuntimeTest
             Assert.AreEqual(0, peer.GetTransceivers().Count());
             var transceiver = peer.AddTransceiver(track);
             Assert.NotNull(transceiver);
-            Assert.That(() => Assert.NotNull(transceiver.CurrentDirection), Throws.InvalidOperationException);
+            Assert.IsNull(transceiver.CurrentDirection);
             RTCRtpSender sender = transceiver.Sender;
             Assert.NotNull(sender);
             Assert.AreEqual(track, sender.Track);
 
             RTCRtpSendParameters parameters = sender.GetParameters();
             Assert.NotNull(parameters);
-            Assert.NotNull(parameters.Encodings);
-            foreach (var encoding in parameters.Encodings)
+            Assert.NotNull(parameters.encodings);
+            foreach (var encoding in parameters.encodings)
             {
                 Assert.True(encoding.active);
                 Assert.Null(encoding.maxBitrate);
@@ -133,9 +137,27 @@ namespace Unity.WebRTC.RuntimeTest
                 Assert.Null(encoding.scaleResolutionDownBy);
                 Assert.IsNotEmpty(encoding.rid);
             }
-            Assert.IsNotEmpty(parameters.TransactionId);
+            Assert.IsNotEmpty(parameters.transactionId);
             Assert.AreEqual(1, peer.GetTransceivers().Count());
             Assert.NotNull(peer.GetTransceivers().First());
+            Assert.NotNull(parameters.codecs);
+            foreach (var codec in parameters.codecs)
+            {
+                Assert.NotNull(codec);
+                Assert.NotZero(codec.payloadType);
+                Assert.IsNotEmpty(codec.mimeType);
+                Assert.IsNotEmpty(codec.sdpFmtpLine);
+                Assert.Null(codec.clockRate);
+                Assert.Null(codec.channels);
+            }
+            Assert.NotNull(parameters.rtcp);
+            Assert.NotNull(parameters.headerExtensions);
+            foreach (var extension in parameters.headerExtensions)
+            {
+                Assert.NotNull(extension);
+                Assert.IsNotEmpty(extension.uri);
+                Assert.NotZero(extension.id);
+            }
 
             track.Dispose();
             stream.Dispose();
@@ -149,7 +171,7 @@ namespace Unity.WebRTC.RuntimeTest
             var peer = new RTCPeerConnection();
             var transceiver = peer.AddTransceiver(TrackKind.Audio);
             Assert.NotNull(transceiver);
-            Assert.That(() => Assert.NotNull(transceiver.CurrentDirection), Throws.InvalidOperationException);
+            Assert.IsNull(transceiver.CurrentDirection);
             RTCRtpReceiver receiver = transceiver.Receiver;
             Assert.NotNull(receiver);
             MediaStreamTrack track = receiver.Track;
@@ -168,7 +190,7 @@ namespace Unity.WebRTC.RuntimeTest
             var peer = new RTCPeerConnection();
             var transceiver = peer.AddTransceiver(TrackKind.Video);
             Assert.NotNull(transceiver);
-            Assert.That(() => Assert.NotNull(transceiver.CurrentDirection), Throws.InvalidOperationException);
+            Assert.IsNull(transceiver.CurrentDirection);
             RTCRtpReceiver receiver = transceiver.Receiver;
             Assert.NotNull(receiver);
             MediaStreamTrack track = receiver.Track;
@@ -180,12 +202,75 @@ namespace Unity.WebRTC.RuntimeTest
             Assert.NotNull(peer.GetTransceivers().First());
         }
 
+        [Test]
+        [Category("PeerConnection")]
+        public void GetAndSetDirectionTransceiver()
+        {
+            var peer = new RTCPeerConnection();
+            var transceiver = peer.AddTransceiver(TrackKind.Video);
+            Assert.NotNull(transceiver);
+            transceiver.Direction = RTCRtpTransceiverDirection.SendOnly;
+            Assert.AreEqual(RTCRtpTransceiverDirection.SendOnly, transceiver.Direction);
+            transceiver.Direction = RTCRtpTransceiverDirection.RecvOnly;
+            Assert.AreEqual(RTCRtpTransceiverDirection.RecvOnly, transceiver.Direction);
+
+            peer.Close();
+            peer.Dispose();
+        }
+
+        [UnityTest]
+        [Timeout(1000)]
+        [Category("PeerConnection")]
+        [UnityPlatform(exclude = new[] { RuntimePlatform.OSXPlayer })]
+        public IEnumerator CurrentDirection()
+        {
+            var config = GetDefaultConfiguration();
+            var peer1 = new RTCPeerConnection(ref config);
+            var peer2 = new RTCPeerConnection(ref config);
+            var audioTrack = new AudioStreamTrack("audio");
+
+            var transceiver1 = peer1.AddTransceiver(TrackKind.Audio);
+            transceiver1.Direction = RTCRtpTransceiverDirection.RecvOnly;
+            Assert.IsNull(transceiver1.CurrentDirection);
+
+            RTCOfferOptions options1 = new RTCOfferOptions {offerToReceiveAudio = true};
+            RTCAnswerOptions options2 = default;
+            var op1 = peer1.CreateOffer(ref options1);
+            yield return op1;
+            var desc = op1.Desc;
+            var op2 = peer1.SetLocalDescription(ref desc);
+            yield return op2;
+            var op3 = peer2.SetRemoteDescription(ref desc);
+            yield return op3;
+
+            var transceiver2 = peer2.GetTransceivers().First(x => x.Receiver.Track.Kind == TrackKind.Audio);
+            Assert.True(transceiver2.Sender.ReplaceTrack(audioTrack));
+            transceiver2.Direction = RTCRtpTransceiverDirection.SendOnly;
+
+            var op4 = peer2.CreateAnswer(ref options2);
+            yield return op4;
+            desc = op4.Desc;
+            var op5 = peer2.SetLocalDescription(ref desc);
+            yield return op5;
+            var op6 = peer1.SetRemoteDescription(ref desc);
+            yield return op6;
+
+            Assert.AreEqual(transceiver1.CurrentDirection, RTCRtpTransceiverDirection.RecvOnly);
+            Assert.AreEqual(transceiver2.CurrentDirection, RTCRtpTransceiverDirection.SendOnly);
+
+            audioTrack.Dispose();
+            peer1.Close();
+            peer2.Close();
+            peer1.Dispose();
+            peer2.Dispose();
+        }
+
         [UnityTest]
         [Timeout(1000)]
         [Category("PeerConnection")]
         public IEnumerator CreateOffer()
         {
-            var config = GetConfiguration();
+            var config = GetDefaultConfiguration();
             var peer = new RTCPeerConnection(ref config);
             RTCOfferOptions options = default;
             var op = peer.CreateOffer(ref options);
@@ -203,7 +288,7 @@ namespace Unity.WebRTC.RuntimeTest
         [Category("PeerConnection")]
         public IEnumerator CreateAnswerFailed()
         {
-            var config = GetConfiguration();
+            var config = GetDefaultConfiguration();
             var peer = new RTCPeerConnection(ref config);
             RTCAnswerOptions options = default;
             var op = peer.CreateAnswer(ref options);
@@ -224,12 +309,11 @@ namespace Unity.WebRTC.RuntimeTest
         [Category("PeerConnection")]
         public IEnumerator CreateAnswer()
         {
-            var config = GetConfiguration();
+            var config = GetDefaultConfiguration();
 
             var peer1 = new RTCPeerConnection(ref config);
             var peer2 = new RTCPeerConnection(ref config);
-            var conf = new RTCDataChannelInit(true);
-            peer1.CreateDataChannel("data", ref conf);
+            peer1.CreateDataChannel("data");
 
             RTCOfferOptions options1 = default;
             RTCAnswerOptions options2 = default;
@@ -295,13 +379,13 @@ namespace Unity.WebRTC.RuntimeTest
         [UnityTest]
         [Timeout(1000)]
         [Category("PeerConnection")]
+        [UnityPlatform(exclude = new[] { RuntimePlatform.OSXPlayer })]
         public IEnumerator SetRemoteDescription()
         {
-            var config = GetConfiguration();
+            var config = GetDefaultConfiguration();
             var peer1 = new RTCPeerConnection(ref config);
             var peer2 = new RTCPeerConnection(ref config);
-            var conf = new RTCDataChannelInit(true);
-            var channel1 = peer1.CreateDataChannel("data", ref conf);
+            var channel1 = peer1.CreateDataChannel("data");
 
             RTCOfferOptions options1 = default;
             RTCAnswerOptions options2 = default;
@@ -383,7 +467,7 @@ namespace Unity.WebRTC.RuntimeTest
         [Category("PeerConnection")]
         public IEnumerator SetRemoteDescriptionFailed()
         {
-            var config = GetConfiguration();
+            var config = GetDefaultConfiguration();
             var peer1 = new RTCPeerConnection(ref config);
             var peer2 = new RTCPeerConnection(ref config);
 
@@ -423,8 +507,8 @@ namespace Unity.WebRTC.RuntimeTest
             var peer1 = new RTCPeerConnection(ref config);
             var peer2 = new RTCPeerConnection(ref config);
 
-            peer1.OnIceCandidate = candidate => { peer2.AddIceCandidate(ref candidate); };
-            peer2.OnIceCandidate = candidate => { peer1.AddIceCandidate(ref candidate); };
+            peer1.OnIceCandidate = candidate => { peer2.AddIceCandidate(candidate); };
+            peer2.OnIceCandidate = candidate => { peer1.AddIceCandidate(candidate); };
 
             MediaStream stream = Audio.CaptureStream();
             peer1.AddTrack(stream.GetTracks().First());

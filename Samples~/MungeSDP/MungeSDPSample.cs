@@ -1,9 +1,9 @@
-﻿using System.Collections;
+using System.Collections;
 using Unity.WebRTC;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class MungeSDPSample : MonoBehaviour
+class MungeSDPSample : MonoBehaviour
 {
 #pragma warning disable 0649
     [SerializeField] private Button startButton;
@@ -99,8 +99,8 @@ public class MungeSDPSample : MonoBehaviour
         pcLocal = new RTCPeerConnection(ref configuration);
         pcRemote = new RTCPeerConnection(ref configuration);
         pcRemote.OnTrack = e => receiveVideoStream.AddTrack(e.Track);
-        pcLocal.OnIceCandidate = candidate => pcRemote.AddIceCandidate(ref candidate);
-        pcRemote.OnIceCandidate = candidate => pcLocal.AddIceCandidate(ref candidate);
+        pcLocal.OnIceCandidate = candidate => pcRemote.AddIceCandidate(candidate);
+        pcRemote.OnIceCandidate = candidate => pcLocal.AddIceCandidate(candidate);
         Debug.Log("pc1: created local and remote peer connection object");
 
         foreach (var track in sourceVideoStream.GetTracks())

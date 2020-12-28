@@ -8,7 +8,7 @@ using UnityEngine.UI;
 using Button = UnityEngine.UI.Button;
 using Toggle = UnityEngine.UI.Toggle;
 
-public class BandwidthSample : MonoBehaviour
+class BandwidthSample : MonoBehaviour
 {
 #pragma warning disable 0649
     [SerializeField] private Dropdown bandwidthSelector;
@@ -247,13 +247,13 @@ public class BandwidthSample : MonoBehaviour
         RTCRtpSendParameters parameters = sender.GetParameters();
         if (bandwidth == null)
         {
-            parameters.Encodings[0].maxBitrate = null;
-            parameters.Encodings[0].minBitrate = null;
+            parameters.encodings[0].maxBitrate = null;
+            parameters.encodings[0].minBitrate = null;
         }
         else
         {
-            parameters.Encodings[0].maxBitrate = bandwidth * 1000;
-            parameters.Encodings[0].minBitrate = bandwidth * 1000;
+            parameters.encodings[0].maxBitrate = bandwidth * 1000;
+            parameters.encodings[0].minBitrate = bandwidth * 1000;
         }
 
         RTCErrorType error = sender.SetParameters(parameters);
@@ -292,8 +292,8 @@ public class BandwidthSample : MonoBehaviour
 
     private void OnIceCandidate(RTCPeerConnection pc, RTCIceCandidate candidate)
     {
-        GetOtherPc(pc).AddIceCandidate(ref candidate);
-        Debug.Log($"{GetName(pc)} ICE candidate:\n {candidate.candidate}");
+        GetOtherPc(pc).AddIceCandidate(candidate);
+        Debug.Log($"{GetName(pc)} ICE candidate:\n {candidate.Candidate}");
     }
 
     private string GetName(RTCPeerConnection pc)

@@ -3,11 +3,81 @@ using System;
 
 namespace Unity.WebRTC
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <seealso cref="RTCPeerConnection.CreateDataChannel(string, RTCDataChannelInit)"/>
+    public class RTCDataChannelInit
+    {
+        /// <summary>
+        /// 
+        /// </summary>
+        public bool? ordered;
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <remarks>
+        /// Cannot be set along with <see cref="RTCDataChannelInit.maxRetransmits"/>.
+        /// </remarks>
+        /// <seealso cref="RTCDataChannelInit.maxRetransmits"/>
+        public int? maxPacketLifeTime;
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <remarks>
+        /// Cannot be set along with <see cref="RTCDataChannelInit.maxPacketLifeTime"/>.
+        /// </remarks>
+        /// <seealso cref="RTCDataChannelInit.maxPacketLifeTime"/>
+        public int? maxRetransmits;
+        /// <summary>
+        /// 
+        /// </summary>
+        public string protocol;
+        /// <summary>
+        /// 
+        /// </summary>
+        public bool? negotiated;
+        /// <summary>
+        /// 
+        /// </summary>
+        public int? id;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct RTCDataChannelInitInternal
+    {
+        public OptionalBool ordered;
+        public OptionalInt maxRetransmitTime;
+        public OptionalInt maxRetransmits;
+        [MarshalAs(UnmanagedType.LPStr)]
+        public string protocol;
+        public OptionalBool negotiated;
+        public OptionalInt id;
+
+        public static explicit operator RTCDataChannelInitInternal (RTCDataChannelInit origin)
+        {
+            RTCDataChannelInitInternal dst = new RTCDataChannelInitInternal
+            {
+                ordered = origin.ordered,
+                maxRetransmitTime = origin.maxPacketLifeTime,
+                maxRetransmits = origin.maxRetransmits,
+                protocol = origin.protocol,
+                negotiated = origin.negotiated,
+                id = origin.id
+            };
+            return dst;
+        }
+    }
+
     public delegate void DelegateOnOpen();
     public delegate void DelegateOnClose();
     public delegate void DelegateOnMessage(byte[] bytes);
     public delegate void DelegateOnDataChannel(RTCDataChannel channel);
 
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <seealso cref="RTCPeerConnection.CreateDataChannel(string, RTCDataChannelInit)"/>
     public class RTCDataChannel : IDisposable
     {
         private IntPtr self;
@@ -18,7 +88,9 @@ namespace Unity.WebRTC
         private int id;
         private bool disposed;
 
-
+        /// <summary>
+        /// 
+        /// </summary>
         public DelegateOnMessage OnMessage
         {
             get { return onMessage; }
@@ -28,6 +100,9 @@ namespace Unity.WebRTC
             }
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
         public DelegateOnOpen OnOpen
         {
             get { return onOpen; }
@@ -36,6 +111,10 @@ namespace Unity.WebRTC
                 onOpen = value;
             }
         }
+
+        /// <summary>
+        /// 
+        /// </summary>
         public DelegateOnClose OnClose
         {
             get { return onClose; }
@@ -45,12 +124,45 @@ namespace Unity.WebRTC
             }
         }
 
-        public int Id
-        {
-            get => NativeMethods.DataChannelGetID(self);
-        }
+        /// <summary>
+        /// 
+        /// </summary>
+        public int Id => NativeMethods.DataChannelGetID(self);
 
-        public string Label { get; private set; }
+        /// <summary>
+        /// 
+        /// </summary>
+        public string Label => NativeMethods.DataChannelGetLabel(self).AsAnsiStringWithFreeMem();
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public string Protocol => NativeMethods.DataChannelGetProtocol(self).AsAnsiStringWithFreeMem();
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public ushort MaxRetransmits => NativeMethods.DataChannelGetMaxRetransmits(self);
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public ushort MaxRetransmitTime => NativeMethods.DataChannelGetMaxRetransmitTime(self);
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public bool Ordered => NativeMethods.DataChannelGetOrdered(self);
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public ulong BufferedAmount => NativeMethods.DataChannelGetBufferedAmount(self);
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public bool Negotiated => NativeMethods.DataChannelGetNegotiated(self);
 
         /// <summary>
         /// The property returns an enum of the <c>RTCDataChannelState</c> which shows 
@@ -60,10 +172,7 @@ namespace Unity.WebRTC
         /// <see cref="Send(string)"/> method must be called when the state is <b>Open</b>.
         /// </remarks>
         /// <seealso cref="RTCDataChannelState"/>
-        public RTCDataChannelState ReadyState
-        {
-            get => NativeMethods.DataChannelGetReadyState(self);
-        }
+        public RTCDataChannelState ReadyState => NativeMethods.DataChannelGetReadyState(self);
 
         [AOT.MonoPInvokeCallback(typeof(DelegateNativeOnMessage))]
         static void DataChannelNativeOnMessage(IntPtr ptr, byte[] msg, int len)
@@ -105,8 +214,6 @@ namespace Unity.WebRTC
         {
             self = ptr;
             WebRTC.Table.Add(self, this);
-            Label = NativeMethods.DataChannelGetLabel(self).AsAnsiStringWithFreeMem();
-
             NativeMethods.DataChannelRegisterOnMessage(self, DataChannelNativeOnMessage);
             NativeMethods.DataChannelRegisterOnOpen(self, DataChannelNativeOnOpen);
             NativeMethods.DataChannelRegisterOnClose(self, DataChannelNativeOnClose);

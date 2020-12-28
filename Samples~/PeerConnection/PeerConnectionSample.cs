@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using Unity.WebRTC;
 
-public class PeerConnectionSample : MonoBehaviour
+class PeerConnectionSample : MonoBehaviour
 {
 #pragma warning disable 0649
     [SerializeField] private Button callButton;
@@ -94,8 +94,7 @@ public class PeerConnectionSample : MonoBehaviour
         pc2.OnIceConnectionChange = pc2OnIceConnectionChange;
         Debug.Log("pc1 createOffer start");
 
-        var conf = new RTCDataChannelInit(true);
-        dataChannel = pc1.CreateDataChannel("data", ref conf);
+        dataChannel = pc1.CreateDataChannel("data");
 
         var op = pc1.CreateOffer(ref OfferOptions);
         yield return op;
@@ -144,8 +143,8 @@ public class PeerConnectionSample : MonoBehaviour
     }
     void OnIceCandidate(RTCPeerConnection pc, RTCIceCandidate candidate)
     {
-        GetOtherPc(pc).AddIceCandidate(ref candidate);
-        Debug.Log($"{GetName(pc)} ICE candidate:\n {candidate.candidate}");
+        GetOtherPc(pc).AddIceCandidate(candidate);
+        Debug.Log($"{GetName(pc)} ICE candidate:\n {candidate.Candidate}");
     }
     string GetName(RTCPeerConnection pc)
     {

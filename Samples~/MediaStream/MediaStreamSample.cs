@@ -7,7 +7,7 @@ using UnityEngine.UI;
 using System.Text;
 
 [RequireComponent(typeof(AudioListener))]
-public class MediaStreamSample : MonoBehaviour
+class MediaStreamSample : MonoBehaviour
 {
 #pragma warning disable 0649
     [SerializeField] private Button callButton;
@@ -190,8 +190,7 @@ public class MediaStreamSample : MonoBehaviour
         _pc2.OnNegotiationNeeded = pc2OnNegotiationNeeded;
         _pc2.OnTrack = pc2Ontrack;
 
-        RTCDataChannelInit conf = new RTCDataChannelInit(true);
-        _pc1.CreateDataChannel("data", ref conf);
+        _pc1.CreateDataChannel("data");
         audioStream = Audio.CaptureStream();
         videoStream = cam.CaptureStream(1280, 720, 1000000);
         RtImage.texture = cam.targetTexture;
@@ -199,8 +198,8 @@ public class MediaStreamSample : MonoBehaviour
 
     private void OnIceCandidate(RTCPeerConnection pc, RTCIceCandidate candidate)
     {
-        GetOtherPc(pc).AddIceCandidate(ref candidate);
-        Debug.Log($"{GetName(pc)} ICE candidate:\n {candidate.candidate}");
+        GetOtherPc(pc).AddIceCandidate(candidate);
+        Debug.Log($"{GetName(pc)} ICE candidate:\n {candidate.Candidate}");
     }
 
     private void OnTrack(RTCPeerConnection pc, RTCTrackEvent e)

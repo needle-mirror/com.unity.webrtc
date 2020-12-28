@@ -117,7 +117,7 @@ namespace Unity.WebRTC
             NativeMethods.PeerConnectionRegisterOnSetSessionDescFailure(self, ptr, callback);
         }
 
-        public IntPtr CreateDataChannel(IntPtr ptr, string label, ref RTCDataChannelInit options)
+        public IntPtr CreateDataChannel(IntPtr ptr, string label, ref RTCDataChannelInitInternal options)
         {
             return NativeMethods.ContextCreateDataChannel(self, ptr, label, ref options);
         }
@@ -201,6 +201,17 @@ namespace Unity.WebRTC
         {
             return NativeMethods.GetInitializationResult(self, track);
         }
+
+        public void GetSenderCapabilities(TrackKind kind, out IntPtr capabilities)
+        {
+            NativeMethods.ContextGetSenderCapabilities(self, kind, out capabilities);
+        }
+
+        public void GetReceiverCapabilities(TrackKind kind, out IntPtr capabilities)
+        {
+            NativeMethods.ContextGetReceiverCapabilities(self, kind, out capabilities);
+        }
+
 
         internal void InitializeEncoder(IntPtr track)
         {

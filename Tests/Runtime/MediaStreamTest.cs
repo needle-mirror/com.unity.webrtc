@@ -38,10 +38,11 @@ namespace Unity.WebRTC.RuntimeTest
             stream.Dispose();
         }
 
+        // todo(kazuki): Crash on windows standalone player
         [UnityTest]
         [Timeout(5000)]
         [Category("MediaStream")]
-        [Ignore("TODO::Crash on windows standalone")]
+        [UnityPlatform(exclude = new[] { RuntimePlatform.LinuxPlayer, RuntimePlatform.WindowsPlayer })]
         public IEnumerator VideoStreamAddTrackAndRemoveTrack()
         {
             var width = 256;
@@ -277,13 +278,13 @@ namespace Unity.WebRTC.RuntimeTest
             foreach(var sender in senders)
             {
                 var parameters = sender.GetParameters();
-                Assert.IsNotEmpty(parameters.Encodings);
+                Assert.IsNotEmpty(parameters.encodings);
                 const uint framerate = 20;
-                parameters.Encodings[0].maxFramerate = framerate;
+                parameters.encodings[0].maxFramerate = framerate;
                 RTCErrorType error = sender.SetParameters(parameters);
                 Assert.AreEqual(RTCErrorType.None, error);
                 var parameters2 = sender.GetParameters();
-                Assert.AreEqual(framerate, parameters2.Encodings[0].maxFramerate);
+                Assert.AreEqual(framerate, parameters2.encodings[0].maxFramerate);
             }
 
             test.component.Dispose();

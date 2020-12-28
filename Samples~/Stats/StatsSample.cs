@@ -6,7 +6,7 @@ using Unity.WebRTC;
 using System;
 using System.Linq;
 
-public class StatsSample : MonoBehaviour
+class StatsSample : MonoBehaviour
 {
     #pragma warning disable 0649
     [SerializeField] private Button callButton;
@@ -159,8 +159,7 @@ public class StatsSample : MonoBehaviour
         pc2.OnIceConnectionChange = pc2OnIceConnectionChange;
         pc2.OnDataChannel = onDataChannel;
 
-        RTCDataChannelInit conf = new RTCDataChannelInit(true);
-        dataChannel = pc1.CreateDataChannel("data", ref conf);
+        dataChannel = pc1.CreateDataChannel("data");
         dataChannel.OnOpen = onDataChannelOpen;
 
         Debug.Log("pc1 createOffer start");
@@ -191,8 +190,8 @@ public class StatsSample : MonoBehaviour
     /// <param name="streamEvent"></param>
     void OnIceCandidate(RTCPeerConnection pc, RTCIceCandidate candidate)
     {
-        GetOtherPc(pc).AddIceCandidate(ref candidate);
-        Debug.Log($"{GetName(pc)} ICE candidate:\n {candidate.candidate}");
+        GetOtherPc(pc).AddIceCandidate(candidate);
+        Debug.Log($"{GetName(pc)} ICE candidate:\n {candidate.Candidate}");
     }
 
     string GetName(RTCPeerConnection pc)

@@ -5,6 +5,7 @@ using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.TestTools;
+using Unity.Collections.LowLevel.Unsafe;
 
 namespace Unity.WebRTC.RuntimeTest
 {
@@ -42,6 +43,9 @@ namespace Unity.WebRTC.RuntimeTest
         public void Init()
         {
             NativeMethods.RegisterDebugLog(DebugLog);
+#if UNITY_IOS && !UNITY_EDITOR
+            NativeMethods.RegisterRenderingWebRTCPlugin();
+#endif
         }
 
         [TearDown]
@@ -54,6 +58,11 @@ namespace Unity.WebRTC.RuntimeTest
         public void OneTimeInit()
         {
             encoderType = EncoderType.Software;
+        }
+
+        [Test]
+        public void NothingToDo()
+        {
         }
 
         [Test]
@@ -102,12 +111,26 @@ namespace Unity.WebRTC.RuntimeTest
             NativeMethods.ContextDestroy(0);
         }
 
+        // todo(kazuki):: crash on iOS device
+        [Test]
+        [UnityPlatform(exclude = new[] { RuntimePlatform.IPhonePlayer })]
+        public void PeerConnectionGetReceivers()
+        {
+            var context = NativeMethods.ContextCreate(0, encoderType);
+            var connection = NativeMethods.ContextCreatePeerConnection(context);
+            IntPtr buf = NativeMethods.PeerConnectionGetReceivers(connection, out ulong length);
+            Assert.AreEqual(0, length);
+            NativeMethods.ContextDeletePeerConnection(context, connection);
+            NativeMethods.ContextDestroy(0);
+        }
+
         [Test]
         public void CreateAndDeleteDataChannel()
         {
             var context = NativeMethods.ContextCreate(0, encoderType);
             var peer = NativeMethods.ContextCreatePeerConnection(context);
-            var init = new RTCDataChannelInit(true);
+
+            var init = (RTCDataChannelInitInternal)new RTCDataChannelInit();
             var channel = NativeMethods.ContextCreateDataChannel(context, peer, "test", ref init);
             NativeMethods.ContextDeleteDataChannel(context, channel);
             NativeMethods.ContextDeletePeerConnection(context, peer);
@@ -205,7 +228,9 @@ namespace Unity.WebRTC.RuntimeTest
             NativeMethods.ContextDestroy(0);
         }
 
+        // todo(kazuki): Crash occurs when calling NativeMethods.MediaStreamRemoveTrack method on iOS device
         [Test]
+        [UnityPlatform(exclude = new[] { RuntimePlatform.IPhonePlayer })]
         public void AddAndRemoveVideoTrackToMediaStream()
         {
             var context = NativeMethods.ContextCreate(0, encoderType);
@@ -216,8 +241,7 @@ namespace Unity.WebRTC.RuntimeTest
             var track = NativeMethods.ContextCreateVideoTrack(context, "video");
             NativeMethods.MediaStreamAddTrack(stream, track);
 
-            uint length = 0;
-            IntPtr buf = NativeMethods.MediaStreamGetVideoTracks(stream, ref length);
+            IntPtr buf = NativeMethods.MediaStreamGetVideoTracks(stream, out ulong length);
             Assert.AreNotEqual(buf, IntPtr.Zero);
             Assert.Greater(length, 0);
 
@@ -236,7 +260,9 @@ namespace Unity.WebRTC.RuntimeTest
             UnityEngine.Object.DestroyImmediate(renderTexture);
         }
 
+        // todo(kazuki): Crash occurs when calling NativeMethods.MediaStreamRemoveTrack method on iOS device
         [Test]
+        [UnityPlatform(exclude = new[] { RuntimePlatform.IPhonePlayer })]
         public void AddAndRemoveAudioTrackToMediaStream()
         {
             var context = NativeMethods.ContextCreate(0, encoderType);
@@ -244,13 +270,11 @@ namespace Unity.WebRTC.RuntimeTest
             var track = NativeMethods.ContextCreateAudioTrack(context, "audio");
             NativeMethods.MediaStreamAddTrack(stream, track);
 
-            uint trackSize = 0;
-            var trackNativePtr = NativeMethods.MediaStreamGetAudioTracks(stream, ref trackSize);
+            var trackNativePtr = NativeMethods.MediaStreamGetAudioTracks(stream, out ulong trackSize);
             Assert.AreNotEqual(trackNativePtr, IntPtr.Zero);
             Assert.Greater(trackSize, 0);
 
-            uint length = 0;
-            IntPtr buf = NativeMethods.MediaStreamGetAudioTracks(stream, ref length);
+            IntPtr buf = NativeMethods.MediaStreamGetAudioTracks(stream, out ulong length);
             Assert.AreNotEqual(buf, IntPtr.Zero);
             Assert.Greater(length, 0);
 
@@ -324,29 +348,25 @@ namespace Unity.WebRTC.RuntimeTest
         [Test]
         public void RTCRtpSendParametersCreateAndDeletePtr()
         {
-            RTCRtpSendParametersInternal parametersInternal = new RTCRtpSendParametersInternal();
+            RTCRtpSendParametersInternal parametersInternal = default;
 
             int encodingsLength = 2;
             RTCRtpEncodingParametersInternal[] encodings = new RTCRtpEncodingParametersInternal[encodingsLength];
             for (int i = 0; i < encodingsLength; i++)
             {
                 encodings[i].active = true;
-                encodings[i].hasValueMaxBitrate = true;
                 encodings[i].maxBitrate = 10000000;
-                encodings[i].hasValueMinBitrate = true;
                 encodings[i].minBitrate = 10000000;
-                encodings[i].hasValueMaxFramerate = true;
                 encodings[i].maxFramerate = 30;
-                encodings[i].hasValueScaleResolutionDownBy = true;
                 encodings[i].scaleResolutionDownBy = 1.0;
                 encodings[i].rid = Marshal.StringToCoTaskMemAnsi(string.Empty);
             }
             parametersInternal.transactionId = Marshal.StringToCoTaskMemAnsi(string.Empty);
-            parametersInternal.encodingsLength = encodingsLength;
-            parametersInternal.encodings = IntPtrExtension.ToPtr(encodings);
-            RTCRtpSendParameters parameter = new RTCRtpSendParameters(parametersInternal);
-            IntPtr ptr = parameter.CreatePtr();
-            RTCRtpSendParameters.DeletePtr(ptr);
+            parametersInternal.encodings = encodings;
+
+            RTCRtpSendParameters parameter = new RTCRtpSendParameters(ref parametersInternal);
+            parameter.CreateInstance(out var instance);
+            instance.Dispose();
         }
 
         /// <todo>

@@ -6,7 +6,7 @@ using UnityEngine.TestTools;
 
 namespace Unity.WebRTC.RuntimeTest
 {
-    public class VideoReceiveTest
+    class VideoReceiveTest
     {
         [SetUp]
         public void SetUp()
@@ -49,7 +49,8 @@ namespace Unity.WebRTC.RuntimeTest
         [Timeout(5000)]
         [ConditionalIgnore(ConditionalIgnore.Direct3D12,
             "VideoStreamTrack.UpdateReceiveTexture is not supported on Direct3D12")]
-        [UnityPlatform(exclude = new[] { RuntimePlatform.LinuxEditor, RuntimePlatform.LinuxPlayer })]
+        [UnityPlatform(exclude = new[] {
+            RuntimePlatform.LinuxEditor, RuntimePlatform.LinuxPlayer, RuntimePlatform.OSXPlayer, RuntimePlatform.OSXEditor})]
         public IEnumerator VideoReceive()
         {
             var config = new RTCConfiguration
@@ -98,13 +99,12 @@ namespace Unity.WebRTC.RuntimeTest
             sendStream.Dispose();
             pc2.Dispose();
             pc1.Dispose();
-            Object.DestroyImmediate(receiveImage);
         }
 
         private static IEnumerator SignalingPeers(RTCPeerConnection offerPc, RTCPeerConnection answerPc)
         {
-            offerPc.OnIceCandidate = candidate => answerPc.AddIceCandidate(ref candidate);
-            answerPc.OnIceCandidate = candidate => offerPc.AddIceCandidate(ref candidate);
+            offerPc.OnIceCandidate = candidate => answerPc.AddIceCandidate(candidate);
+            answerPc.OnIceCandidate = candidate => offerPc.AddIceCandidate(candidate);
 
             var offerOption = new RTCOfferOptions {offerToReceiveVideo = true};
             var answerOption = new RTCAnswerOptions {iceRestart = false};

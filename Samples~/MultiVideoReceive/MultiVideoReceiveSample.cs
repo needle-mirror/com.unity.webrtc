@@ -5,7 +5,7 @@ using UnityEngine;
 using Unity.WebRTC;
 using UnityEngine.UI;
 
-public class MultiVideoReceiveSample : MonoBehaviour
+class MultiVideoReceiveSample : MonoBehaviour
 {
 #pragma warning disable 0649
     [SerializeField] private Button callButton;
@@ -245,8 +245,8 @@ public class MultiVideoReceiveSample : MonoBehaviour
 
     private void OnIceCandidate(RTCPeerConnection pc, RTCIceCandidate candidate)
     {
-        GetOtherPc(pc).AddIceCandidate(ref candidate);
-        Debug.Log($"{GetName(pc)} ICE candidate:\n {candidate.candidate}");
+        GetOtherPc(pc).AddIceCandidate(candidate);
+        Debug.Log($"{GetName(pc)} ICE candidate:\n {candidate.Candidate}");
     }
 
     private string GetName(RTCPeerConnection pc)

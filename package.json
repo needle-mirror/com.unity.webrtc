@@ -1,7 +1,7 @@
 {
   "name": "com.unity.webrtc",
   "displayName": "WebRTC",
-  "version": "2.3.0-preview",
+  "version": "2.3.1-preview",
   "unity": "2019.4",
   "description": "The WebRTC package provides browsers and mobile applications with Real-Time Communications (RTC) capabilities.",
   "keywords": [
@@ -20,11 +20,11 @@
     }
   ],
   "upmCi": {
-    "footprint": "daf6da5fd6d645a1ba89e0b42e7fe321b1636724"
+    "footprint": "45bf43b5dca30dcc51d29e7b9f8ec7d19590612b"
   },
   "repository": {
     "url": "https://github.com/Unity-Technologies/com.unity.webrtc.git",
     "type": "git",
-    "revision": "578c53834314c3894c6f88cf0f09564b69e640f2"
+    "revision": "26ec3e1b5303e11c801abf573eb2ef9d322bdf43"
   }
 }

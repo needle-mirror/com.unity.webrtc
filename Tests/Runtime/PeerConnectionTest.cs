@@ -63,6 +63,15 @@ namespace Unity.WebRTC.RuntimeTest
 
         [Test]
         [Category("PeerConnection")]
+        public void AccessAfterDisposed()
+        {
+            var peer = new RTCPeerConnection();
+            peer.Dispose();
+            Assert.That(() => {  var state = peer.ConnectionState; }, Throws.TypeOf<InvalidOperationException>());
+        }
+
+        [Test]
+        [Category("PeerConnection")]
         public void GetConfiguration()
         {
             var config = GetDefaultConfiguration();
@@ -215,6 +224,21 @@ namespace Unity.WebRTC.RuntimeTest
             Assert.AreEqual(RTCRtpTransceiverDirection.RecvOnly, transceiver.Direction);
 
             peer.Close();
+            peer.Dispose();
+        }
+
+        [Test]
+        [Category("PeerConnection")]
+        public void GetTransceivers()
+        {
+            var peer = new RTCPeerConnection();
+            var track = new AudioStreamTrack("audio");
+
+            var sender = peer.AddTrack(track);
+            Assert.That(peer.GetTransceivers().ToList(), Has.Count.EqualTo(1));
+            Assert.That(peer.GetTransceivers().Select(t => t.Sender).ToList(), Has.Member(sender));
+
+            track.Dispose();
             peer.Dispose();
         }
 

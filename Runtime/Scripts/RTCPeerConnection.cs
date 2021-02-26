@@ -1,15 +1,47 @@
 using UnityEngine;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Unity.WebRTC
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="candidate"></param>
     public delegate void DelegateOnIceCandidate(RTCIceCandidate candidate);
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="state"></param>
     public delegate void DelegateOnIceConnectionChange(RTCIceConnectionState state);
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="state"></param>
+    public delegate void DelegateOnConnectionStateChange(RTCPeerConnectionState state);
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="state"></param>
     public delegate void DelegateOnIceGatheringStateChange(RTCIceGatheringState state);
+    /// <summary>
+    /// 
+    /// </summary>
     public delegate void DelegateOnNegotiationNeeded();
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="e"></param>
     public delegate void DelegateOnTrack(RTCTrackEvent e);
+    /// <summary>
+    /// 
+    /// </summary>
     public delegate void DelegateSetSessionDescSuccess();
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="error"></param>
     public delegate void DelegateSetSessionDescFailure(RTCError error);
 
     /// <summary>
@@ -25,14 +57,6 @@ namespace Unity.WebRTC
         private IntPtr self;
 
         internal Action<IntPtr> OnStatsDelivered = null;
-        private DelegateOnIceConnectionChange onIceConnectionChange;
-        private DelegateOnIceGatheringStateChange onIceGatheringStateChange;
-        private DelegateOnIceCandidate onIceCandidate;
-        private DelegateOnDataChannel onDataChannel;
-        private DelegateOnTrack onTrack;
-        private DelegateOnNegotiationNeeded onNegotiationNeeded;
-        private DelegateSetSessionDescSuccess onSetSessionDescSuccess;
-        private DelegateSetSessionDescFailure onSetSetSessionDescFailure;
 
         private RTCSessionDescriptionAsyncOperation m_opSessionDesc;
         private RTCSessionDescriptionAsyncOperation m_opSetRemoteDesc;
@@ -57,6 +81,7 @@ namespace Unity.WebRTC
             if (self != IntPtr.Zero && !WebRTC.Context.IsNull)
             {
                 Close();
+                DisposeAllTransceivers();
                 WebRTC.Context.DeletePeerConnection(self);
                 WebRTC.Table.Remove(self);
                 self = IntPtr.Zero;
@@ -64,6 +89,21 @@ namespace Unity.WebRTC
 
             this.disposed = true;
             GC.SuppressFinalize(this);
+        }
+
+        private void DisposeAllTransceivers()
+        {
+            var transceivers = GetTransceivers();
+            foreach (var transceiver in transceivers)
+            {
+                // Dispose of MediaStreamTrack when disposing of RTCRtpReceiver.
+                // On the other hand, do not dispose a track when disposing of RTCRtpSender.
+                transceiver.Receiver?.Track?.Dispose();
+
+                transceiver.Receiver?.Dispose();
+                transceiver.Sender?.Dispose();
+                transceiver.Dispose();
+            }
         }
 
         /// <summary>
@@ -127,7 +167,7 @@ namespace Unity.WebRTC
         public IEnumerable<RTCRtpReceiver> GetReceivers()
         {
             IntPtr buf = NativeMethods.PeerConnectionGetReceivers(GetSelfOrThrow(), out ulong length);
-            return WebRTC.Deserialize(buf, (int)length, ptr => new RTCRtpReceiver(ptr, this));
+            return WebRTC.Deserialize(buf, (int)length, CreateReceiver);
         }
 
         /// <summary>
@@ -144,7 +184,7 @@ namespace Unity.WebRTC
         public IEnumerable<RTCRtpSender> GetSenders()
         {
             var buf = NativeMethods.PeerConnectionGetSenders(GetSelfOrThrow(), out ulong length);
-            return WebRTC.Deserialize(buf, (int)length, ptr => new RTCRtpSender(ptr, this));
+            return WebRTC.Deserialize(buf, (int)length, CreateSender);
         }
 
         /// <summary>
@@ -161,8 +201,24 @@ namespace Unity.WebRTC
         public IEnumerable<RTCRtpTransceiver> GetTransceivers()
         {
             var buf = NativeMethods.PeerConnectionGetTransceivers(GetSelfOrThrow(), out ulong length);
-            return WebRTC.Deserialize(buf, (int)length, ptr => new RTCRtpTransceiver(ptr, this));
+            return WebRTC.Deserialize(buf, (int)length, CreateTransceiver);
         }
+
+        RTCRtpReceiver CreateReceiver(IntPtr ptr)
+        {
+            return WebRTC.FindOrCreate(ptr, _ptr => new RTCRtpReceiver(_ptr, this));
+        }
+
+        RTCRtpSender CreateSender(IntPtr ptr)
+        {
+            return WebRTC.FindOrCreate(ptr, _ptr => new RTCRtpSender(_ptr, this));
+        }
+
+        RTCRtpTransceiver CreateTransceiver(IntPtr ptr)
+        {
+            return WebRTC.FindOrCreate(ptr, _ptr => new RTCRtpTransceiver(_ptr, this));
+        }
+
 
         /// <summary>
         /// This property is delegate to be called when the <see cref ="IceConnectionState"/> is changed.
@@ -177,78 +233,41 @@ namespace Unity.WebRTC
         /// </code>
         /// </example>
         /// <seealso cref="IceConnectionState"/>
-        public DelegateOnIceConnectionChange OnIceConnectionChange
-        {
-            private get => onIceConnectionChange;
-            set
-            {
-                onIceConnectionChange = value;
-            }
-        }
+        public DelegateOnIceConnectionChange OnIceConnectionChange { get; set; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public DelegateOnConnectionStateChange OnConnectionStateChange { get; set; }
 
         /// <summary>
         /// 
         /// </summary>
         /// <seealso cref="GatheringState"/>
-        public DelegateOnIceGatheringStateChange OnIceGatheringStateChange
-        {
-            private get => onIceGatheringStateChange;
-            set
-            {
-                onIceGatheringStateChange = value;
-            }
-        }
+        public DelegateOnIceGatheringStateChange OnIceGatheringStateChange { get; set; }
 
         /// <summary>
         ///
         /// </summary>
         /// <seealso cref="RTCIceCandidate"/>
-        public DelegateOnIceCandidate OnIceCandidate
-        {
-            private get => onIceCandidate;
-            set
-            {
-                onIceCandidate = value;
-            }
-        }
+        public DelegateOnIceCandidate OnIceCandidate { get; set; }
 
         /// <summary>
         ///
         /// </summary>
         /// <seealso cref="RTCDataChannel"/>
-        public DelegateOnDataChannel OnDataChannel
-        {
-            private get => onDataChannel;
-            set
-            {
-                onDataChannel = value;
-            }
-        }
+        public DelegateOnDataChannel OnDataChannel { get; set; }
 
         /// <summary>
         ///
         /// </summary>
-        public DelegateOnNegotiationNeeded OnNegotiationNeeded
-        {
-            private get => onNegotiationNeeded;
-            set
-            {
-                onNegotiationNeeded = value;
-            }
-        }
+        public DelegateOnNegotiationNeeded OnNegotiationNeeded { get; set; }
 
         /// <summary>
         ///
         /// </summary>
         /// <seealso cref="RTCTrackEvent"/>
-        public DelegateOnTrack OnTrack
-        {
-            private get => onTrack;
-            set
-            {
-                onTrack = value;
-            }
-        }
+        public DelegateOnTrack OnTrack { get; set; }
 
         internal IntPtr GetSelfOrThrow()
         {
@@ -259,23 +278,9 @@ namespace Unity.WebRTC
             return self;
         }
 
-        internal DelegateSetSessionDescSuccess OnSetSessionDescriptionSuccess
-        {
-            private get => onSetSessionDescSuccess;
-            set
-            {
-                onSetSessionDescSuccess = value;
-            }
-        }
+        internal DelegateSetSessionDescSuccess OnSetSessionDescriptionSuccess { get; set; }
 
-        internal DelegateSetSessionDescFailure OnSetSessionDescriptionFailure
-        {
-            private get => onSetSetSessionDescFailure;
-            set
-            {
-                onSetSetSessionDescFailure = value;
-            }
-        }
+        internal DelegateSetSessionDescFailure OnSetSessionDescriptionFailure { get; set; }
 
         [AOT.MonoPInvokeCallback(typeof(DelegateNativeOnIceCandidate))]
         static void PCOnIceCandidate(IntPtr ptr, string sdp, string sdpMid, int sdpMlineIndex)
@@ -304,6 +309,18 @@ namespace Unity.WebRTC
                 if (WebRTC.Table[ptr] is RTCPeerConnection connection)
                 {
                     connection.OnIceConnectionChange?.Invoke(state);
+                }
+            });
+        }
+
+        [AOT.MonoPInvokeCallback(typeof(DelegateNativeOnConnectionStateChange))]
+        static void PCOnConnectionStateChange(IntPtr ptr, RTCPeerConnectionState state)
+        {
+            WebRTC.Sync(ptr, () =>
+            {
+                if (WebRTC.Table[ptr] is RTCPeerConnection connection)
+                {
+                    connection.OnConnectionStateChange?.Invoke(state);
                 }
             });
         }
@@ -456,6 +473,7 @@ namespace Unity.WebRTC
             NativeMethods.PeerConnectionRegisterCallbackCreateSD(self, OnSuccessCreateSessionDesc, OnFailureCreateSessionDesc);
             NativeMethods.PeerConnectionRegisterCallbackCollectStats(self, OnStatsDeliveredCallback);
             NativeMethods.PeerConnectionRegisterIceConnectionChange(self, PCOnIceConnectionChange);
+            NativeMethods.PeerConnectionRegisterConnectionStateChange(self, PCOnConnectionStateChange);
             NativeMethods.PeerConnectionRegisterIceGatheringChange(self, PCOnIceGatheringChange);
             NativeMethods.PeerConnectionRegisterOnIceCandidate(self, PCOnIceCandidate);
             NativeMethods.PeerConnectionRegisterOnDataChannel(self, PCOnDataChannel);
@@ -491,7 +509,9 @@ namespace Unity.WebRTC
             }
 
             var streamId = stream == null ? Guid.NewGuid().ToString() : stream.Id;
-            return new RTCRtpSender(NativeMethods.PeerConnectionAddTrack(GetSelfOrThrow(), track.GetSelfOrThrow(), streamId), this);
+            IntPtr ptr = NativeMethods.PeerConnectionAddTrack(
+                GetSelfOrThrow(), track.GetSelfOrThrow(), streamId);
+            return CreateSender(ptr);
         }
 
         /// <summary>
@@ -501,7 +521,8 @@ namespace Unity.WebRTC
         /// <seealso cref="AddTrack"/>
         public void RemoveTrack(RTCRtpSender sender)
         {
-            NativeMethods.PeerConnectionRemoveTrack(GetSelfOrThrow(), sender.self);
+            NativeMethods.PeerConnectionRemoveTrack(
+                GetSelfOrThrow(), sender.self);
         }
 
         /// <summary>
@@ -511,7 +532,9 @@ namespace Unity.WebRTC
         /// <returns></returns>
         public RTCRtpTransceiver AddTransceiver(MediaStreamTrack track)
         {
-            return new RTCRtpTransceiver(NativeMethods.PeerConnectionAddTransceiver(GetSelfOrThrow(), track.GetSelfOrThrow()), this);
+            IntPtr ptr = NativeMethods.PeerConnectionAddTransceiver(
+                GetSelfOrThrow(), track.GetSelfOrThrow());
+            return CreateTransceiver(ptr);
         }
 
         /// <summary>
@@ -521,7 +544,9 @@ namespace Unity.WebRTC
         /// <returns></returns>
         public RTCRtpTransceiver AddTransceiver(TrackKind kind)
         {
-            return new RTCRtpTransceiver(NativeMethods.PeerConnectionAddTransceiverWithType(GetSelfOrThrow(), kind), this);
+            IntPtr ptr = NativeMethods.PeerConnectionAddTransceiverWithType(
+                GetSelfOrThrow(), kind);
+            return CreateTransceiver(ptr);
         }
 
         /// <summary>
@@ -530,7 +555,8 @@ namespace Unity.WebRTC
         /// <param name="candidate"></param>
         public bool AddIceCandidate(RTCIceCandidate candidate)
         {
-            return NativeMethods.PeerConnectionAddIceCandidate(GetSelfOrThrow(), candidate.self);
+            return NativeMethods.PeerConnectionAddIceCandidate(
+                GetSelfOrThrow(), candidate.self);
         }
 
         /// <summary>

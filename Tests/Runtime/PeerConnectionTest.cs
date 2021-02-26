@@ -570,13 +570,189 @@ namespace Unity.WebRTC.RuntimeTest
             peer2.Close();
         }
 
+
+        [UnityTest]
+        [Timeout(5000)]
+        public IEnumerator MediaStreamTrackThrowExceptionAfterPeerDisposed()
+        {
+            RTCConfiguration config = default;
+            config.iceServers = new[] { new RTCIceServer { urls = new[] { "stun:stun.l.google.com:19302" } } };
+            var peer1 = new RTCPeerConnection(ref config);
+            var peer2 = new RTCPeerConnection(ref config);
+
+            peer1.OnIceCandidate = candidate => { peer2.AddIceCandidate(candidate); };
+            peer2.OnIceCandidate = candidate => { peer1.AddIceCandidate(candidate); };
+
+            MediaStreamTrack track = null;
+            MediaStream stream = Audio.CaptureStream();
+            peer1.AddTrack(stream.GetTracks().First());
+
+            peer2.OnTrack = e => { track = e.Track; };
+
+            RTCOfferOptions options1 = default;
+            RTCAnswerOptions options2 = default;
+            var op1 = peer1.CreateOffer(ref options1);
+            yield return op1;
+            var desc = op1.Desc;
+            var op2 = peer1.SetLocalDescription(ref desc);
+            yield return op2;
+            var op3 = peer2.SetRemoteDescription(ref desc);
+            yield return op3;
+            var op4 = peer2.CreateAnswer(ref options2);
+            yield return op4;
+            desc = op4.Desc;
+            var op5 = peer2.SetLocalDescription(ref desc);
+            yield return op5;
+            var op6 = peer1.SetRemoteDescription(ref desc);
+            yield return op6;
+
+            var op7 = new WaitUntilWithTimeout(
+                () => peer1.IceConnectionState == RTCIceConnectionState.Connected ||
+                      peer1.IceConnectionState == RTCIceConnectionState.Completed, 5000);
+            yield return op7;
+            Assert.True(op7.IsCompleted);
+            var op8 = new WaitUntilWithTimeout(
+                () => peer2.IceConnectionState == RTCIceConnectionState.Connected ||
+                      peer2.IceConnectionState == RTCIceConnectionState.Completed, 5000);
+            yield return op8;
+            Assert.True(op8.IsCompleted);
+            Assert.That(track, Is.Not.Null);
+            peer2.Dispose();
+            Assert.That(() => track.Id, Throws.TypeOf<InvalidOperationException>());
+            track.Dispose();
+        }
+
+        [UnityTest]
+        [Timeout(5000)]
+        public IEnumerator TransceiverReturnsSender()
+        {
+            RTCConfiguration config = default;
+            config.iceServers = new[] { new RTCIceServer { urls = new[] { "stun:stun.l.google.com:19302" } } };
+            var peer1 = new RTCPeerConnection(ref config);
+            var peer2 = new RTCPeerConnection(ref config);
+
+            peer1.OnIceCandidate = candidate => { peer2.AddIceCandidate(candidate); };
+            peer2.OnIceCandidate = candidate => { peer1.AddIceCandidate(candidate); };
+
+            MediaStream stream1 = Audio.CaptureStream();
+            peer1.AddTrack(stream1.GetTracks().First());
+
+            RTCOfferOptions options1 = default;
+            RTCAnswerOptions options2 = default;
+            var op1 = peer1.CreateOffer(ref options1);
+            yield return op1;
+            var desc = op1.Desc;
+            var op2 = peer1.SetLocalDescription(ref desc);
+            yield return op2;
+            var op3 = peer2.SetRemoteDescription(ref desc);
+            yield return op3;
+            var op4 = peer2.CreateAnswer(ref options2);
+            yield return op4;
+            desc = op4.Desc;
+            var op5 = peer2.SetLocalDescription(ref desc);
+            yield return op5;
+            var op6 = peer1.SetRemoteDescription(ref desc);
+            yield return op6;
+
+            var op7 = new WaitUntilWithTimeout(
+                () => peer1.IceConnectionState == RTCIceConnectionState.Connected ||
+                      peer1.IceConnectionState == RTCIceConnectionState.Completed, 5000);
+            yield return op7;
+            Assert.True(op7.IsCompleted);
+            var op8 = new WaitUntilWithTimeout(
+                () => peer2.IceConnectionState == RTCIceConnectionState.Connected ||
+                      peer2.IceConnectionState == RTCIceConnectionState.Completed, 5000);
+            yield return op8;
+
+            Assert.That(peer2.GetTransceivers().Count(), Is.EqualTo(1));
+            RTCRtpSender sender1 = peer2.GetTransceivers().First().Sender;
+            Assert.That(sender1, Is.Not.Null);
+
+            MediaStream stream2 = Audio.CaptureStream();
+            RTCRtpSender sender2 = peer2.AddTrack(stream2.GetTracks().First());
+            Assert.That(sender2, Is.Not.Null);
+            Assert.That(sender1, Is.EqualTo(sender2));
+
+            peer1.Dispose();
+            peer2.Dispose();
+        }
+
+        [UnityTest]
+        [Timeout(5000)]
+        public IEnumerator PeerConnectionStateChange()
+        {
+            RTCConfiguration config = default;
+            config.iceServers = new[] { new RTCIceServer { urls = new[] { "stun:stun.l.google.com:19302" } } };
+            var peer1 = new RTCPeerConnection(ref config);
+            var peer2 = new RTCPeerConnection(ref config);
+
+            RTCPeerConnectionState state1 = default;
+            RTCPeerConnectionState state2 = default;
+            RTCIceConnectionState iceState1 = default;
+            RTCIceConnectionState iceState2 = default;
+
+            peer1.OnIceCandidate = candidate => { peer2.AddIceCandidate(candidate); };
+            peer2.OnIceCandidate = candidate => { peer1.AddIceCandidate(candidate); };
+            peer1.OnConnectionStateChange = state => { state1 = state; };
+            peer2.OnConnectionStateChange = state => { state2 = state; };
+            peer1.OnIceConnectionChange = state => { iceState1 = state; };
+            peer2.OnIceConnectionChange = state => { iceState2 = state; };
+
+            Assert.That(state1, Is.EqualTo(RTCPeerConnectionState.New));
+            Assert.That(state2, Is.EqualTo(RTCPeerConnectionState.New));
+
+            MediaStream stream = Audio.CaptureStream();
+            peer1.AddTrack(stream.GetTracks().First());
+
+            RTCOfferOptions options1 = default;
+            RTCAnswerOptions options2 = default;
+            var op1 = peer1.CreateOffer(ref options1);
+            yield return op1;
+            var desc = op1.Desc;
+            var op2 = peer1.SetLocalDescription(ref desc);
+            yield return op2;
+            var op3 = peer2.SetRemoteDescription(ref desc);
+            yield return op3;
+            var op4 = peer2.CreateAnswer(ref options2);
+            yield return op4;
+            desc = op4.Desc;
+            var op5 = peer2.SetLocalDescription(ref desc);
+            yield return op5;
+            var op6 = peer1.SetRemoteDescription(ref desc);
+            yield return op6;
+
+            var op7 = new WaitUntilWithTimeout( () =>
+                    state1 == RTCPeerConnectionState.Connected &&
+                    state2 == RTCPeerConnectionState.Connected, 5000);
+            yield return op7;
+            Assert.That(op7.IsCompleted, Is.True);
+
+            var op8 = new WaitUntilWithTimeout(() =>
+                (iceState1 == RTCIceConnectionState.Connected || iceState1 == RTCIceConnectionState.Completed) &&
+                (iceState2 == RTCIceConnectionState.Connected || iceState2 == RTCIceConnectionState.Completed)
+                , 5000);
+            yield return op8;
+            Assert.That(op8.IsCompleted, Is.True);
+
+            peer1.Close();
+
+            var op9 = new WaitUntilWithTimeout(() =>
+                state1 == RTCPeerConnectionState.Closed &&
+                iceState2 == RTCIceConnectionState.Disconnected, 5000);
+            yield return op9;
+            Assert.That(op9.IsCompleted, Is.True);
+
+            stream.Dispose();
+            peer2.Close();
+        }
+
         [UnityTest]
         [Timeout(5000)]
         public IEnumerator GetStatsReturnsReport()
         {
             var camObj = new GameObject("Camera");
             var cam = camObj.AddComponent<Camera>();
-            var videoStream = cam.CaptureStream(1280, 720, 1000000);
+            var videoStream = cam.CaptureStream(1280, 720, 0);
             yield return new WaitForSeconds(0.1f);
 
             var test = new MonoBehaviourTest<SignalingPeers>();

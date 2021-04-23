@@ -10,7 +10,7 @@ using Unity.Collections.LowLevel.Unsafe;
 namespace Unity.WebRTC.RuntimeTest
 {
     [TestFixture]
-    [ConditionalIgnore(ConditionalIgnore.UnsupportedHardwareForNvCodec, "Ignored hardware encoder test.")]
+    [ConditionalIgnore(ConditionalIgnore.UnsupportedHardwareForHardwareCodec, "Ignored hardware encoder test.")]
     class NativeAPITestWithHardwareEncoder : NativeAPITestWithSoftwareEncoder
     {
         [OneTimeSetUp]
@@ -89,6 +89,16 @@ namespace Unity.WebRTC.RuntimeTest
             NativeMethods.ContextDestroy(0);
         }
 
+        [Test]
+        public void RestartIcePeerConnection()
+        {
+            var context = NativeMethods.ContextCreate(0, encoderType);
+            var peer = NativeMethods.ContextCreatePeerConnection(context);
+            NativeMethods.PeerConnectionRestartIce(peer);
+            NativeMethods.ContextDeletePeerConnection(context, peer);
+            NativeMethods.ContextDestroy(0);
+        }
+
         [AOT.MonoPInvokeCallback(typeof(DelegateNativePeerConnectionSetSessionDescSuccess))]
         static void PeerConnectionSetSessionDescSuccess(IntPtr connection)
         {
@@ -157,9 +167,12 @@ namespace Unity.WebRTC.RuntimeTest
         {
             var context = NativeMethods.ContextCreate(0, encoderType);
             var stream = NativeMethods.ContextCreateMediaStream(context, "MediaStream");
+            NativeMethods.ContextRegisterMediaStreamObserver(context, stream);
 
             NativeMethods.MediaStreamRegisterOnAddTrack(context, stream, MediaStreamOnAddTrack);
             NativeMethods.MediaStreamRegisterOnRemoveTrack(context, stream, MediaStreamOnRemoveTrack);
+
+            NativeMethods.ContextUnRegisterMediaStreamObserver(context, stream);
             NativeMethods.ContextDeleteMediaStream(context, stream);
             NativeMethods.ContextDestroy(0);
         }
@@ -471,7 +484,7 @@ namespace Unity.WebRTC.RuntimeTest
     }
 
     [TestFixture]
-    [ConditionalIgnore(ConditionalIgnore.UnsupportedHardwareForNvCodec, "Ignored hardware encoder test.")]
+    [ConditionalIgnore(ConditionalIgnore.UnsupportedHardwareForHardwareCodec, "Ignored hardware encoder test.")]
     [UnityPlatform(RuntimePlatform.WindowsEditor, RuntimePlatform.OSXEditor, RuntimePlatform.LinuxEditor)]
     class NativeAPITestWithHardwareEncoderAndEnterPlayModeOptionsEnabled : NativeAPITestWithHardwareEncoder, IPrebuildSetup
     {

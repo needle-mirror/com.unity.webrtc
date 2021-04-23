@@ -1,16 +1,16 @@
 using System;
-using System.Runtime.InteropServices;
-using UnityEngine;
-using System.Threading;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Threading;
+using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 
 namespace Unity.WebRTC
 {
     /// <summary>
-    /// 
+    ///
     /// </summary>
     /// <seealso cref="WebRTC.Initialize(EncoderType)"/>
     public enum EncoderType
@@ -20,7 +20,7 @@ namespace Unity.WebRTC
     }
 
     /// <summary>
-    /// 
+    ///
     /// </summary>
     public enum RTCErrorDetailType
     {
@@ -48,7 +48,7 @@ namespace Unity.WebRTC
     }
 
     /// <summary>
-    /// 
+    ///
     /// </summary>
     /// <seealso cref="RTCPeerConnection.ConnectionState"/>
     public enum RTCPeerConnectionState : int
@@ -62,7 +62,7 @@ namespace Unity.WebRTC
     }
 
     /// <summary>
-    /// 
+    ///
     /// </summary>
     /// <seealso cref="RTCPeerConnection.IceConnectionState"/>
     public enum RTCIceConnectionState : int
@@ -78,7 +78,7 @@ namespace Unity.WebRTC
     }
 
     /// <summary>
-    /// 
+    ///
     /// </summary>
     /// <seealso cref="RTCPeerConnection.GatheringState"/>
     public enum RTCIceGatheringState : int
@@ -89,21 +89,21 @@ namespace Unity.WebRTC
     }
 
     /// <summary>
-    /// 
+    ///
     /// </summary>
     /// <seealso cref="RTCPeerConnection.SignalingState"/>
     public enum RTCSignalingState : int
     {
         Stable = 0,
         HaveLocalOffer = 1,
-        HaveRemoteOffer = 2,
-        HaveLocalPranswer = 3,
-        HaveRemotePranswer = 4,
-        Closed = 5
+        HaveLocalPrAnswer = 2,
+        HaveRemoteOffer = 3,
+        HaveRemotePrAnswer = 4,
+        Closed = 5,
     }
 
     /// <summary>
-    /// 
+    ///
     /// </summary>
     public enum RTCErrorType
     {
@@ -162,7 +162,7 @@ namespace Unity.WebRTC
     }
 
     /// <summary>
-    /// 
+    ///
     /// </summary>
     public struct RTCSessionDescription
     {
@@ -172,22 +172,26 @@ namespace Unity.WebRTC
     }
 
     /// <summary>
-    /// 
+    ///
     /// </summary>
-    public struct RTCOfferOptions
+    public struct RTCOfferAnswerOptions
     {
-        [MarshalAs(UnmanagedType.U1)]
-        public bool iceRestart;
-        [MarshalAs(UnmanagedType.U1)]
-        public bool offerToReceiveAudio;
-        [MarshalAs(UnmanagedType.U1)]
-        public bool offerToReceiveVideo;
-    }
+        public static RTCOfferAnswerOptions Default =
+            new RTCOfferAnswerOptions {iceRestart = false, voiceActivityDetection = true};
 
-    public struct RTCAnswerOptions
-    {
+        /// <summary>
+        ///
+        /// </summary>
         [MarshalAs(UnmanagedType.U1)]
         public bool iceRestart;
+        /// <summary>
+        ///
+        /// </summary>
+        /// <remarks>
+        /// this property is not supported yet.
+        /// </remarks>
+        [MarshalAs(UnmanagedType.U1)]
+        public bool voiceActivityDetection;
     }
 
     /// <summary>
@@ -201,7 +205,7 @@ namespace Unity.WebRTC
     }
 
     /// <summary>
-    /// 
+    ///
     /// </summary>
     /// <seealso cref="RTCConfiguration"/>
     [Serializable]
@@ -224,17 +228,17 @@ namespace Unity.WebRTC
     public enum RTCIceTransportPolicy : int
     {
         /// <summary>
-        /// 
+        ///
         /// </summary>
         Relay = 1,
         /// <summary>
-        /// 
+        ///
         /// </summary>
         All = 3
     }
 
     /// <summary>
-    /// 
+    ///
     /// </summary>
     /// <seealso cref="RTCPeerConnection.GetConfiguration()"/>
     /// <seealso cref="RTCPeerConnection.SetConfiguration(ref RTCConfiguration)"/>
@@ -242,25 +246,25 @@ namespace Unity.WebRTC
     public struct RTCConfiguration
     {
         /// <summary>
-        /// 
+        ///
         /// </summary>
         public RTCIceServer[] iceServers;
         /// <summary>
-        /// 
+        ///
         /// </summary>
         public RTCIceTransportPolicy iceTransportPolicy;
         /// <summary>
-        /// 
+        ///
         /// </summary>
         public RTCBundlePolicy bundlePolicy;
         /// <summary>
-        /// 
+        ///
         /// </summary>
         public int iceCandidatePoolSize;
     }
 
     /// <summary>
-    /// 
+    ///
     /// </summary>
     public enum CodecInitializationResult
     {
@@ -284,6 +288,8 @@ namespace Unity.WebRTC
         internal const string Lib = "webrtc";
 #elif UNITY_IOS
         internal const string Lib = "__Internal";
+#elif UNITY_ANDROID
+        internal const string Lib = "webrtc";
 #endif
         private static Context s_context = null;
         private static SynchronizationContext s_syncContext;
@@ -304,8 +310,11 @@ namespace Unity.WebRTC
 #if UNITY_EDITOR
             UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
 #endif
-            if (Application.platform != RuntimePlatform.LinuxEditor &&
-                Application.platform != RuntimePlatform.LinuxPlayer)
+            // OpenGL APIs on windows/osx are not supported
+            if (Application.platform == RuntimePlatform.WindowsEditor ||
+                Application.platform == RuntimePlatform.WindowsPlayer ||
+                Application.platform == RuntimePlatform.OSXEditor ||
+                Application.platform == RuntimePlatform.OSXPlayer)
             {
                 if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLCore ||
                     SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES2 ||
@@ -407,41 +416,67 @@ namespace Unity.WebRTC
             return System.IO.Path.GetFileName(Lib);
         }
 
-        public static RenderTextureFormat GetSupportedRenderTextureFormat(UnityEngine.Rendering.GraphicsDeviceType type)
+        public static void ValidateGraphicsFormat(GraphicsFormat format)
         {
-            switch (type)
+            // ToDo: Increase the supported formats.
+            GraphicsFormat supportedFormat = GetSupportedGraphicsFormat(SystemInfo.graphicsDeviceType);
+            if (format != supportedFormat)
             {
-                case UnityEngine.Rendering.GraphicsDeviceType.Direct3D11:
-                case UnityEngine.Rendering.GraphicsDeviceType.Direct3D12:
-                case UnityEngine.Rendering.GraphicsDeviceType.Vulkan:
-                    return RenderTextureFormat.BGRA32;
-                case UnityEngine.Rendering.GraphicsDeviceType.OpenGLCore:
-                case UnityEngine.Rendering.GraphicsDeviceType.OpenGLES2:
-                case UnityEngine.Rendering.GraphicsDeviceType.OpenGLES3:
-                    return RenderTextureFormat.ARGB32;
-                case UnityEngine.Rendering.GraphicsDeviceType.Metal:
-                    return RenderTextureFormat.BGRA32;
+                throw new ArgumentException(
+                    $"This graphics format {format} is not supported for streaming, please use supportedFormat: {supportedFormat}");
             }
-            return RenderTextureFormat.Default;
+        }
+
+        public static RenderTextureFormat GetSupportedRenderTextureFormat(GraphicsDeviceType type)
+        {
+            var graphicsFormat = GetSupportedGraphicsFormat(type);
+            return GraphicsFormatUtility.GetRenderTextureFormat(graphicsFormat);
         }
 
         public static GraphicsFormat GetSupportedGraphicsFormat(GraphicsDeviceType type)
         {
-            switch (type)
+            if (QualitySettings.activeColorSpace == ColorSpace.Linear)
             {
-                case UnityEngine.Rendering.GraphicsDeviceType.Direct3D11:
-                case UnityEngine.Rendering.GraphicsDeviceType.Direct3D12:
-                    return GraphicsFormat.B8G8R8A8_SRGB;
-                case UnityEngine.Rendering.GraphicsDeviceType.Vulkan:
-                    return GraphicsFormat.R8G8B8A8_SRGB;
-                case UnityEngine.Rendering.GraphicsDeviceType.OpenGLCore:
-                case UnityEngine.Rendering.GraphicsDeviceType.OpenGLES2:
-                case UnityEngine.Rendering.GraphicsDeviceType.OpenGLES3:
-                    return GraphicsFormat.R8G8B8A8_SRGB;
-                case UnityEngine.Rendering.GraphicsDeviceType.Metal:
-                    return GraphicsFormat.B8G8R8A8_SRGB;
+                switch (type)
+                {
+                    case GraphicsDeviceType.Direct3D11:
+                    case GraphicsDeviceType.Direct3D12:
+                        return GraphicsFormat.B8G8R8A8_SRGB;
+                    case GraphicsDeviceType.Vulkan:
+                        return GraphicsFormat.R8G8B8A8_SRGB;
+                    case GraphicsDeviceType.OpenGLCore:
+                    case GraphicsDeviceType.OpenGLES2:
+                    case GraphicsDeviceType.OpenGLES3:
+                        return GraphicsFormat.R8G8B8A8_SRGB;
+                    case GraphicsDeviceType.Metal:
+                        return GraphicsFormat.B8G8R8A8_SRGB;
+                }
             }
-            throw new ArgumentException("Graphics device type not supported");
+            else
+            {
+                switch (type)
+                {
+                    case GraphicsDeviceType.Direct3D11:
+                    case GraphicsDeviceType.Direct3D12:
+                        return GraphicsFormat.B8G8R8A8_UNorm;
+                    case GraphicsDeviceType.Vulkan:
+                        return GraphicsFormat.R8G8B8A8_UNorm;
+                    case GraphicsDeviceType.OpenGLCore:
+                    case GraphicsDeviceType.OpenGLES2:
+                    case GraphicsDeviceType.OpenGLES3:
+                        return GraphicsFormat.R8G8B8A8_UNorm;
+                    case GraphicsDeviceType.Metal:
+                        return GraphicsFormat.B8G8R8A8_UNorm;
+                }
+            }
+
+            throw new ArgumentException($"Graphics device type {type} not supported");
+        }
+
+        public static TextureFormat GetSupportedTextureFormat(GraphicsDeviceType type)
+        {
+            var graphicsFormat = GetSupportedGraphicsFormat(type);
+            return GraphicsFormatUtility.GetTextureFormat(graphicsFormat);
         }
 
         internal static IEnumerable<T> Deserialize<T>(IntPtr buf, int length, Func<IntPtr, T> constructor) where T : class
@@ -568,13 +603,15 @@ namespace Unity.WebRTC
 
     internal static class NativeMethods
     {
+#if UNITY_IOS && !UNITY_EDITOR
+        [DllImport(WebRTC.Lib)]
+        public static extern void RegisterRenderingWebRTCPlugin();
+#endif
         [DllImport(WebRTC.Lib)]
         [return: MarshalAs(UnmanagedType.U1)]
         public static extern bool GetHardwareEncoderSupport();
         [DllImport(WebRTC.Lib)]
         public static extern void RegisterDebugLog(DelegateDebugLog func);
-        [DllImport(WebRTC.Lib)]
-        public static extern void RegisterRenderingWebRTCPlugin();
         [DllImport(WebRTC.Lib)]
         public static extern IntPtr ContextCreate(int uid, EncoderType encoderType);
         [DllImport(WebRTC.Lib)]
@@ -587,6 +624,8 @@ namespace Unity.WebRTC
         public static extern void ContextDeletePeerConnection(IntPtr ptr, IntPtr ptrPeerConnection);
         [DllImport(WebRTC.Lib)]
         public static extern void PeerConnectionClose(IntPtr ptr);
+        [DllImport(WebRTC.Lib)]
+        public static extern void PeerConnectionRestartIce(IntPtr ptr);
         [DllImport(WebRTC.Lib)]
         public static extern RTCErrorType PeerConnectionSetConfiguration(IntPtr ptr, [MarshalAs(UnmanagedType.LPStr, SizeConst = 256)] string conf);
         [DllImport(WebRTC.Lib)]
@@ -610,9 +649,9 @@ namespace Unity.WebRTC
         [DllImport(WebRTC.Lib)]
         public static extern IntPtr PeerConnectionGetConfiguration(IntPtr ptr);
         [DllImport(WebRTC.Lib)]
-        public static extern void PeerConnectionCreateOffer(IntPtr ptr, ref RTCOfferOptions options);
+        public static extern void PeerConnectionCreateOffer(IntPtr ptr, ref RTCOfferAnswerOptions options);
         [DllImport(WebRTC.Lib)]
-        public static extern void PeerConnectionCreateAnswer(IntPtr ptr, ref RTCAnswerOptions options);
+        public static extern void PeerConnectionCreateAnswer(IntPtr ptr, ref RTCOfferAnswerOptions options);
         [DllImport(WebRTC.Lib)]
         public static extern void PeerConnectionRegisterCallbackCreateSD(IntPtr ptr, DelegateCreateSDSuccess onSuccess, DelegateCreateSDFailure onFailure);
         [DllImport(WebRTC.Lib)]
@@ -631,6 +670,8 @@ namespace Unity.WebRTC
         public static extern void PeerConnectionRegisterOnIceCandidate(IntPtr ptr, DelegateNativeOnIceCandidate callback);
         [DllImport(WebRTC.Lib)]
         public static extern RTCErrorType PeerConnectionSetLocalDescription(IntPtr context, IntPtr ptr, ref RTCSessionDescription desc, ref IntPtr error);
+        [DllImport(WebRTC.Lib)]
+        public static extern RTCErrorType PeerConnectionSetLocalDescriptionWithoutDescription(IntPtr context, IntPtr ptr, ref IntPtr error);
         [DllImport(WebRTC.Lib)]
         public static extern RTCErrorType PeerConnectionSetRemoteDescription(IntPtr context, IntPtr ptr, ref RTCSessionDescription desc, ref IntPtr error);
         [DllImport(WebRTC.Lib)]
@@ -734,6 +775,8 @@ namespace Unity.WebRTC
         [DllImport(WebRTC.Lib)]
         public static extern IntPtr ReceiverGetTrack(IntPtr receiver);
         [DllImport(WebRTC.Lib)]
+        public static extern IntPtr ReceiverGetStreams(IntPtr receiver, out ulong length);
+        [DllImport(WebRTC.Lib)]
         public static extern int DataChannelGetID(IntPtr ptr);
         [DllImport(WebRTC.Lib)]
         public static extern IntPtr DataChannelGetLabel(IntPtr ptr);
@@ -769,6 +812,10 @@ namespace Unity.WebRTC
         public static extern IntPtr ContextCreateMediaStream(IntPtr ctx, [MarshalAs(UnmanagedType.LPStr, SizeConst = 256)] string label);
         [DllImport(WebRTC.Lib)]
         public static extern void ContextDeleteMediaStream(IntPtr ctx, IntPtr stream);
+        [DllImport(WebRTC.Lib)]
+        public static extern void ContextRegisterMediaStreamObserver(IntPtr ctx, IntPtr stream);
+        [DllImport(WebRTC.Lib)]
+        public static extern void ContextUnRegisterMediaStreamObserver(IntPtr ctx, IntPtr stream);
         [DllImport(WebRTC.Lib)]
         public static extern EncoderType ContextGetEncoderType(IntPtr context);
         [DllImport(WebRTC.Lib)]

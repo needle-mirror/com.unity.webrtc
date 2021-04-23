@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using Unity.WebRTC;
+using Unity.WebRTC.Samples;
 using UnityEngine.UI;
 
 class MultiplePeerConnectionsSample : MonoBehaviour
@@ -16,13 +17,6 @@ class MultiplePeerConnectionsSample : MonoBehaviour
     [SerializeField] private Transform rotateObject;
 #pragma warning restore 0649
 
-    private static RTCOfferOptions offerOptions = new RTCOfferOptions
-    {
-        iceRestart = false, offerToReceiveAudio = true, offerToReceiveVideo = true
-    };
-
-    private static RTCAnswerOptions answerOptions = new RTCAnswerOptions {iceRestart = false,};
-
     private static RTCConfiguration configuration = new RTCConfiguration
     {
         iceServers = new[] {new RTCIceServer {urls = new[] {"stun:stun.l.google.com:19302"}}}
@@ -34,7 +28,7 @@ class MultiplePeerConnectionsSample : MonoBehaviour
 
     private void Awake()
     {
-        WebRTC.Initialize(EncoderType.Software);
+        WebRTC.Initialize(WebRTCSettings.EncoderType);
     }
 
     private void OnDestroy()
@@ -164,7 +158,7 @@ class MultiplePeerConnectionsSample : MonoBehaviour
 
     private static IEnumerator NegotiationPeer(RTCPeerConnection localPeer, RTCPeerConnection remotePeer)
     {
-        var opCreateOffer = localPeer.CreateOffer(ref offerOptions);
+        var opCreateOffer = localPeer.CreateOffer();
         yield return opCreateOffer;
 
         if (opCreateOffer.IsError)
@@ -178,7 +172,7 @@ class MultiplePeerConnectionsSample : MonoBehaviour
         Debug.Log($"Offer from LocalPeer \n {offerDesc.sdp}");
         yield return remotePeer.SetRemoteDescription(ref offerDesc);
 
-        var opCreateAnswer = remotePeer.CreateAnswer(ref answerOptions);
+        var opCreateAnswer = remotePeer.CreateAnswer();
         yield return opCreateAnswer;
 
         if (opCreateAnswer.IsError)

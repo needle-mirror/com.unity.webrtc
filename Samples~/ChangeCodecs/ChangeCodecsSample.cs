@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using Unity.WebRTC;
+using Unity.WebRTC.Samples;
 using UnityEngine.UI;
 using Button = UnityEngine.UI.Button;
 
@@ -39,18 +40,9 @@ class ChangeCodecsSample : MonoBehaviour
     private const int width = 1280;
     private const int height = 720;
 
-    private RTCOfferOptions _offerOptions = new RTCOfferOptions
-    {
-        iceRestart = false,
-        offerToReceiveAudio = true,
-        offerToReceiveVideo = true
-    };
-
-    private RTCAnswerOptions _answerOptions = new RTCAnswerOptions { iceRestart = false, };
-
     private void Awake()
     {
-        WebRTC.Initialize(EncoderType.Software);
+        WebRTC.Initialize(WebRTCSettings.EncoderType);
         startButton.onClick.AddListener(OnStart);
         callButton.onClick.AddListener(Call);
         hangUpButton.onClick.AddListener(HangUp);
@@ -154,7 +146,7 @@ class ChangeCodecsSample : MonoBehaviour
 
     IEnumerator PeerNegotiationNeeded(RTCPeerConnection pc)
     {
-        var op = pc.CreateOffer(ref _offerOptions);
+        var op = pc.CreateOffer();
         yield return op;
 
         if (!op.IsError)
@@ -317,7 +309,7 @@ class ChangeCodecsSample : MonoBehaviour
         // to pass in the right constraints in order for it to
         // accept the incoming offer of audio and video.
 
-        var op3 = otherPc.CreateAnswer(ref _answerOptions);
+        var op3 = otherPc.CreateAnswer();
         yield return op3;
         if (!op3.IsError)
         {
@@ -383,6 +375,8 @@ class ChangeCodecsSample : MonoBehaviour
     IEnumerator CheckActualCodec()
     {
         yield return new WaitForSeconds(1f);
+        if (_pc1 == null)
+            yield break;
 
         var op = _pc1.GetStats();
         yield return op;
@@ -405,20 +399,6 @@ class ChangeCodecsSample : MonoBehaviour
 
         RTCCodecStats codecStats =
             codecStatsList.First(stats => stats.Id == codecId);
-
-        var arr = outBoundStatsList.ToArray();
-        var arr2 = codecStatsList.ToArray();
-
-
-        Debug.Log(arr);
-        Debug.Log(arr2);
-
-        //foreach (var s in report.Stats.Values.Where(stats => stats is RTCCodecStats))
-        //{
-        //    var s2 = s as RTCCodecStats;
-        //    Debug.Log(s2.Type + " " + s2.Id);
-        //}
-
 
         actualCodecText.text = string.Format("Using {0} {1}, payloadType={2}.",
             codecStats.mimeType,

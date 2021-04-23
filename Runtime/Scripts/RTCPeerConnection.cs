@@ -6,40 +6,40 @@ using System.Linq;
 namespace Unity.WebRTC
 {
     /// <summary>
-    /// 
+    ///
     /// </summary>
     /// <param name="candidate"></param>
     public delegate void DelegateOnIceCandidate(RTCIceCandidate candidate);
     /// <summary>
-    /// 
+    ///
     /// </summary>
     /// <param name="state"></param>
     public delegate void DelegateOnIceConnectionChange(RTCIceConnectionState state);
     /// <summary>
-    /// 
+    ///
     /// </summary>
     /// <param name="state"></param>
     public delegate void DelegateOnConnectionStateChange(RTCPeerConnectionState state);
     /// <summary>
-    /// 
+    ///
     /// </summary>
     /// <param name="state"></param>
     public delegate void DelegateOnIceGatheringStateChange(RTCIceGatheringState state);
     /// <summary>
-    /// 
+    ///
     /// </summary>
     public delegate void DelegateOnNegotiationNeeded();
     /// <summary>
-    /// 
+    ///
     /// </summary>
     /// <param name="e"></param>
     public delegate void DelegateOnTrack(RTCTrackEvent e);
     /// <summary>
-    /// 
+    ///
     /// </summary>
     public delegate void DelegateSetSessionDescSuccess();
     /// <summary>
-    /// 
+    ///
     /// </summary>
     /// <param name="error"></param>
     public delegate void DelegateSetSessionDescFailure(RTCError error);
@@ -149,7 +149,7 @@ namespace Unity.WebRTC
         public RTCSignalingState SignalingState => NativeMethods.PeerConnectionSignalingState(GetSelfOrThrow());
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         public RTCIceGatheringState GatheringState => NativeMethods.PeerConnectionIceGatheringState(GetSelfOrThrow());
 
@@ -236,12 +236,12 @@ namespace Unity.WebRTC
         public DelegateOnIceConnectionChange OnIceConnectionChange { get; set; }
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         public DelegateOnConnectionStateChange OnConnectionStateChange { get; set; }
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <seealso cref="GatheringState"/>
         public DelegateOnIceGatheringStateChange OnIceGatheringStateChange { get; set; }
@@ -485,6 +485,11 @@ namespace Unity.WebRTC
                 self, OnSetSessionDescFailure);
         }
 
+        public void RestartIce()
+        {
+            NativeMethods.PeerConnectionRestartIce(GetSelfOrThrow());
+        }
+
         /// <summary>
         ///
         /// </summary>
@@ -538,7 +543,7 @@ namespace Unity.WebRTC
         }
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <param name="kind"></param>
         /// <returns></returns>
@@ -563,13 +568,20 @@ namespace Unity.WebRTC
         /// Create an SDP (Session Description Protocol) offer to start a new connection
         /// to a remote peer.
         /// </summary>
-        /// <param name="options"> A parameter to request for the offer. </param>
+        /// <param name="options"></param>
         /// <returns></returns>
         /// <seealso cref="CreateAnswer"/>
-        public RTCSessionDescriptionAsyncOperation CreateOffer(ref RTCOfferOptions options)
+        public RTCSessionDescriptionAsyncOperation CreateOffer(ref RTCOfferAnswerOptions options)
         {
             m_opSessionDesc = new RTCSessionDescriptionAsyncOperation();
             NativeMethods.PeerConnectionCreateOffer(GetSelfOrThrow(), ref options);
+            return m_opSessionDesc;
+        }
+
+        public RTCSessionDescriptionAsyncOperation CreateOffer()
+        {
+            m_opSessionDesc = new RTCSessionDescriptionAsyncOperation();
+            NativeMethods.PeerConnectionCreateOffer(GetSelfOrThrow(), ref RTCOfferAnswerOptions.Default);
             return m_opSessionDesc;
         }
 
@@ -579,10 +591,17 @@ namespace Unity.WebRTC
         /// </summary>
         /// <param name="options"></param>
         /// <returns></returns>
-        public RTCSessionDescriptionAsyncOperation CreateAnswer(ref RTCAnswerOptions options)
+        public RTCSessionDescriptionAsyncOperation CreateAnswer(ref RTCOfferAnswerOptions options)
         {
             m_opSessionDesc = new RTCSessionDescriptionAsyncOperation();
             NativeMethods.PeerConnectionCreateAnswer(GetSelfOrThrow(), ref options);
+            return m_opSessionDesc;
+        }
+
+        public RTCSessionDescriptionAsyncOperation CreateAnswer()
+        {
+            m_opSessionDesc = new RTCSessionDescriptionAsyncOperation();
+            NativeMethods.PeerConnectionCreateAnswer(GetSelfOrThrow(), ref RTCOfferAnswerOptions.Default);
             return m_opSessionDesc;
         }
 
@@ -665,6 +684,16 @@ namespace Unity.WebRTC
             throw new RTCErrorException(ref error);
         }
 
+        public RTCSetSessionDescriptionAsyncOperation SetLocalDescription()
+        {
+            var op = new RTCSetSessionDescriptionAsyncOperation(this);
+            RTCError error = WebRTC.Context.PeerConnectionSetLocalDescription(GetSelfOrThrow());
+            if (error.errorType == RTCErrorType.None)
+            {
+                return op;
+            }
+            throw new RTCErrorException(ref error);
+        }
 
         /// <summary>
         /// This method changes the session description

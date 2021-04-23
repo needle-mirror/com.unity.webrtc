@@ -2,8 +2,10 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Xml.Serialization;
 using UnityEngine;
 using Unity.WebRTC;
+using Unity.WebRTC.Samples;
 using UnityEngine.UI;
 using Button = UnityEngine.UI.Button;
 using Toggle = UnityEngine.UI.Toggle;
@@ -48,16 +50,9 @@ class BandwidthSample : MonoBehaviour
     private const int width = 1280;
     private const int height = 720;
 
-    private RTCOfferOptions _offerOptions = new RTCOfferOptions
-    {
-        iceRestart = false, offerToReceiveAudio = true, offerToReceiveVideo = true
-    };
-
-    private RTCAnswerOptions _answerOptions = new RTCAnswerOptions {iceRestart = false,};
-
     private void Awake()
     {
-        WebRTC.Initialize(EncoderType.Software);
+        WebRTC.Initialize(WebRTCSettings.EncoderType);
         bandwidthSelector.options = bandwidthOptions
             .Select(pair => new Dropdown.OptionData{text = pair.Key })
             .ToList();
@@ -156,7 +151,7 @@ class BandwidthSample : MonoBehaviour
     IEnumerator PeerNegotiationNeeded(RTCPeerConnection pc)
     {
         Debug.Log($"{GetName(pc)} createOffer start");
-        var op = pc.CreateOffer(ref _offerOptions);
+        var op = pc.CreateOffer();
         yield return op;
 
         if (!op.IsError)
@@ -185,7 +180,7 @@ class BandwidthSample : MonoBehaviour
         if (!videoUpdateStarted)
         {
             StartCoroutine(WebRTC.Update());
-            StartCoroutine(UpdateStats());
+            StartCoroutine(LoopStatsCoroutine());
             videoUpdateStarted = true;
         }
 
@@ -306,23 +301,29 @@ class BandwidthSample : MonoBehaviour
         return (pc == _pc1) ? _pc2 : _pc1;
     }
 
-    private IEnumerator UpdateStats()
+    private IEnumerator LoopStatsCoroutine()
     {
         while (true)
         {
-            RTCRtpSender sender = pc1Senders.First();
-            RTCStatsReportAsyncOperation op = sender.GetStats();
-            yield return op;
-            if (op.IsError)
-            {
-                Debug.LogErrorFormat("RTCRtpSender.GetStats() is failed {0}", op.Error.errorType);
-            }
-            else
-            {
-                UpdateStatsPacketSize(op.Value);
-            }
-
+            yield return StartCoroutine(UpdateStatsCoroutine());
             yield return new WaitForSeconds(1f);
+        }
+    }
+
+    private IEnumerator UpdateStatsCoroutine()
+    {
+        RTCRtpSender sender = pc1Senders.FirstOrDefault();
+        if (sender == null)
+            yield break;
+        RTCStatsReportAsyncOperation op = sender.GetStats();
+        yield return op;
+        if (op.IsError)
+        {
+            Debug.LogErrorFormat("RTCRtpSender.GetStats() is failed {0}", op.Error.errorType);
+        }
+        else
+        {
+            UpdateStatsPacketSize(op.Value);
         }
     }
 
@@ -396,7 +397,7 @@ class BandwidthSample : MonoBehaviour
         // to pass in the right constraints in order for it to
         // accept the incoming offer of audio and video.
 
-        var op3 = otherPc.CreateAnswer(ref _answerOptions);
+        var op3 = otherPc.CreateAnswer();
         yield return op3;
         if (!op3.IsError)
         {

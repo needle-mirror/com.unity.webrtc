@@ -3,11 +3,13 @@ using UnityEngine;
 using UnityEngine.UI;
 using Unity.WebRTC;
 using System;
+using Unity.WebRTC.Samples;
 
 class DataChannelSample : MonoBehaviour
 {
     #pragma warning disable 0649
     [SerializeField] private Button callButton;
+    [SerializeField] private Button hangupButton;
     [SerializeField] private Button sendButton;
     [SerializeField] private InputField textSend;
     [SerializeField] private InputField textReceive;
@@ -15,8 +17,6 @@ class DataChannelSample : MonoBehaviour
 
     private RTCPeerConnection pc1, pc2;
     private RTCDataChannel dataChannel, remoteDataChannel;
-    private Coroutine sdpCheck;
-    private string msg;
     private DelegateOnIceConnectionChange pc1OnIceConnectionChange;
     private DelegateOnIceConnectionChange pc2OnIceConnectionChange;
     private DelegateOnIceCandidate pc1OnIceCandidate;
@@ -26,22 +26,12 @@ class DataChannelSample : MonoBehaviour
     private DelegateOnClose onDataChannelClose;
     private DelegateOnDataChannel onDataChannel;
 
-    private RTCOfferOptions OfferOptions = new RTCOfferOptions
-    {
-        iceRestart = false,
-        offerToReceiveAudio = true,
-        offerToReceiveVideo = false
-    };
-
-    private RTCAnswerOptions AnswerOptions = new RTCAnswerOptions
-    {
-        iceRestart = false,
-    };
-
     private void Awake()
     {
-        WebRTC.Initialize();
+        WebRTC.Initialize(WebRTCSettings.EncoderType);
         callButton.onClick.AddListener(() => { StartCoroutine(Call()); });
+        hangupButton.onClick.AddListener(() => { Hangup(); });
+
     }
 
     private void OnDestroy()
@@ -52,6 +42,7 @@ class DataChannelSample : MonoBehaviour
     private void Start()
     {
         callButton.interactable = true;
+        hangupButton.interactable = false;
 
         pc1OnIceConnectionChange = state => { OnIceConnectionChange(pc1, state); };
         pc2OnIceConnectionChange = state => { OnIceConnectionChange(pc2, state); };
@@ -63,8 +54,16 @@ class DataChannelSample : MonoBehaviour
             remoteDataChannel.OnMessage = onDataChannelMessage;
         };
         onDataChannelMessage = bytes => { textReceive.text = System.Text.Encoding.UTF8.GetString(bytes); };
-        onDataChannelOpen = ()=> { sendButton.interactable = true; };
-        onDataChannelClose = () => { sendButton.interactable = false; };
+        onDataChannelOpen = () =>
+        {
+            sendButton.interactable = true;
+            hangupButton.interactable = true;
+        };
+        onDataChannelClose = () =>
+        {
+            sendButton.interactable = false;
+            hangupButton.interactable = false;
+        };
     }
 
     RTCConfiguration GetSelectedSdpSemantics()
@@ -147,7 +146,7 @@ class DataChannelSample : MonoBehaviour
         dataChannel.OnOpen = onDataChannelOpen;
 
         Debug.Log("pc1 createOffer start");
-        var op = pc1.CreateOffer(ref OfferOptions);
+        var op = pc1.CreateOffer();
         yield return op;
 
         if (!op.IsError)
@@ -160,8 +159,24 @@ class DataChannelSample : MonoBehaviour
         }
     }
 
+    void Hangup()
+    {
+        pc1.Close();
+        pc2.Close();
+        pc1 = null;
+        pc2 = null;
+
+        textSend.text = string.Empty;
+        textReceive.text = string.Empty;
+
+        hangupButton.interactable = false;
+        sendButton.interactable = false;
+        callButton.interactable = true;
+    }
+
+
     /// <summary>
-    /// 
+    ///
     /// </summary>
     /// <param name="pc"></param>
     /// <param name="streamEvent"></param>
@@ -219,7 +234,7 @@ class DataChannelSample : MonoBehaviour
         // to pass in the right constraints in order for it to
         // accept the incoming offer of audio and video.
 
-        var op3 = pc2.CreateAnswer(ref AnswerOptions);
+        var op3 = pc2.CreateAnswer();
         yield return op3;
         if (!op3.IsError)
         {

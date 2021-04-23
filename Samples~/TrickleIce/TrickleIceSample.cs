@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using Unity.WebRTC;
+using Unity.WebRTC.Samples;
 using UnityEngine.UI;
 using Button = UnityEngine.UI.Button;
 
@@ -32,20 +33,11 @@ class TrickleIceSample : MonoBehaviour
     private Dictionary<GameObject, RTCIceServer> iceServers
         = new Dictionary<GameObject, RTCIceServer>();
 
-    private GameObject selectedOption = null; 
-
-    private RTCOfferOptions _offerOptions = new RTCOfferOptions
-    {
-        iceRestart = false,
-        offerToReceiveAudio = true,
-        offerToReceiveVideo = true
-    };
-
-    private RTCAnswerOptions _answerOptions = new RTCAnswerOptions { iceRestart = false, };
+    private GameObject selectedOption = null;
 
     private void Awake()
     {
-        WebRTC.Initialize(EncoderType.Software);
+        WebRTC.Initialize(WebRTCSettings.EncoderType);
         addServerButton.onClick.AddListener(OnAddServer);
         removeServerButton.onClick.AddListener(OnRemoveServer);
         resetToDefaultButton.onClick.AddListener(OnResetToDefault);
@@ -152,7 +144,7 @@ class TrickleIceSample : MonoBehaviour
 
     IEnumerator CreateOffer(RTCPeerConnection pc)
     {
-        var op = pc.CreateOffer(ref _offerOptions);
+        var op = pc.CreateOffer();
         yield return op;
 
         if (!op.IsError)

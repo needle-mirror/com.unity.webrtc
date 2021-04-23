@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.WebRTC;
+using Unity.WebRTC.Samples;
 using UnityEngine.UI;
 
 class MultiVideoReceiveSample : MonoBehaviour
@@ -35,16 +36,9 @@ class MultiVideoReceiveSample : MonoBehaviour
     private const int width = 1280;
     private const int height = 720;
 
-    private RTCOfferOptions _offerOptions = new RTCOfferOptions
-    {
-        iceRestart = false, offerToReceiveAudio = false, offerToReceiveVideo = true
-    };
-
-    private RTCAnswerOptions _answerOptions = new RTCAnswerOptions {iceRestart = false,};
-
     private void Awake()
     {
-        WebRTC.Initialize(EncoderType.Software);
+        WebRTC.Initialize(WebRTCSettings.EncoderType);
         callButton.onClick.AddListener(Call);
         hangUpButton.onClick.AddListener(HangUp);
         addTracksButton.onClick.AddListener(AddTransceiver);
@@ -135,7 +129,7 @@ class MultiVideoReceiveSample : MonoBehaviour
     IEnumerator PeerNegotiationNeeded(RTCPeerConnection pc)
     {
         Debug.Log($"{GetName(pc)} createOffer start");
-        var op = pc.CreateOffer(ref _offerOptions);
+        var op = pc.CreateOffer();
         yield return op;
 
         if (!op.IsError)
@@ -294,7 +288,7 @@ class MultiVideoReceiveSample : MonoBehaviour
         // Since the 'remote' side has no media stream we need
         // to pass in the right constraints in order for it to
         // accept the incoming offer of audio and video.
-        var op3 = otherPc.CreateAnswer(ref _answerOptions);
+        var op3 = otherPc.CreateAnswer();
         yield return op3;
         if (!op3.IsError)
         {

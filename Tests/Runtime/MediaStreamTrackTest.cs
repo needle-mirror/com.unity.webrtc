@@ -13,7 +13,7 @@ namespace Unity.WebRTC.RuntimeTest
         [SetUp]
         public void SetUp()
         {
-            var value = NativeMethods.GetHardwareEncoderSupport();
+            var value = TestHelper.HardwareCodecSupport();
             WebRTC.Initialize(value ? EncoderType.Hardware : EncoderType.Software);
         }
 
@@ -21,6 +21,24 @@ namespace Unity.WebRTC.RuntimeTest
         public void TearDown()
         {
             WebRTC.Dispose();
+        }
+
+        [Test]
+        public void GraphicsFormat()
+        {
+            var graphicsFormat = WebRTC.GetSupportedGraphicsFormat(SystemInfo.graphicsDeviceType);
+            var renderTextureFormat = WebRTC.GetSupportedRenderTextureFormat(SystemInfo.graphicsDeviceType);
+            var textureFormat = WebRTC.GetSupportedTextureFormat(SystemInfo.graphicsDeviceType);
+
+            var rt = new RenderTexture(10, 10, 0, renderTextureFormat);
+            rt.Create();
+            Assert.That(rt.graphicsFormat, Is.EqualTo(graphicsFormat));
+
+            var tx = new Texture2D(10, 10, textureFormat, false);
+            Assert.That(tx.graphicsFormat, Is.EqualTo(graphicsFormat));
+
+            Object.DestroyImmediate(rt);
+            Object.DestroyImmediate(tx);
         }
 
         [Test]

@@ -13,7 +13,7 @@ namespace Unity.WebRTC.RuntimeTest
         [SetUp]
         public void SetUp()
         {
-            var value = NativeMethods.GetHardwareEncoderSupport();
+            var value = TestHelper.HardwareCodecSupport();
             WebRTC.Initialize(value ? EncoderType.Hardware : EncoderType.Software);
         }
 
@@ -24,6 +24,7 @@ namespace Unity.WebRTC.RuntimeTest
         }
 
         [Test]
+        [Category("MediaStream")]
         public void Construct()
         {
             var stream = new MediaStream();
@@ -41,6 +42,7 @@ namespace Unity.WebRTC.RuntimeTest
         }
 
         [Test]
+        [Category("MediaStream")]
         public void RegisterDelegate()
         {
             var stream = new MediaStream();
@@ -49,11 +51,11 @@ namespace Unity.WebRTC.RuntimeTest
             stream.Dispose();
         }
 
-        // todo(kazuki): Crash on windows standalone player
+        // todo(kazuki): Crash on Android and Linux standalone player
         [UnityTest]
         [Timeout(5000)]
         [Category("MediaStream")]
-        [UnityPlatform(exclude = new[] { RuntimePlatform.LinuxPlayer, RuntimePlatform.WindowsPlayer })]
+        [UnityPlatform(exclude = new[] { RuntimePlatform.LinuxPlayer, RuntimePlatform.Android })]
         public IEnumerator VideoStreamAddTrackAndRemoveTrack()
         {
             var width = 256;
@@ -350,22 +352,55 @@ namespace Unity.WebRTC.RuntimeTest
             var rt = new UnityEngine.RenderTexture(width, height, 0, format);
             rt.Create();
             var track2 = new VideoStreamTrack("video2", rt);
+            yield return 0;
 
-            videoStream.AddTrack(track2);
+            Assert.That(videoStream.AddTrack(track2), Is.True);
             var op1 = new WaitUntilWithTimeout(() => isCalledOnAddTrack, 5000);
             yield return op1;
-            videoStream.RemoveTrack(track2);
+            Assert.That(videoStream.RemoveTrack(track2), Is.True);
             var op2 = new WaitUntilWithTimeout(() => isCalledOnRemoveTrack, 5000);
             yield return op2;
 
             test.component.Dispose();
             track2.Dispose();
+            foreach (var track in videoStream.GetTracks())
+            {
+                track.Dispose();
+            }
             // wait for disposing video track.
             yield return 0;
 
             videoStream.Dispose();
             Object.DestroyImmediate(camObj);
             Object.DestroyImmediate(rt);
+        }
+
+        [UnityTest]
+        [Timeout(5000)]
+        public IEnumerator ReceiverGetStreams()
+        {
+            var audioTrack = new AudioStreamTrack("audio");
+            var stream = new MediaStream(WebRTC.Context.CreateMediaStream("audiostream"));
+            stream.AddTrack(audioTrack);
+            yield return 0;
+
+            var test = new MonoBehaviourTest<SignalingPeers>();
+            test.component.SetStream(stream);
+            yield return test;
+
+            foreach (var receiver in test.component.GetReceivers(1))
+            {
+                Assert.That(receiver.Streams, Has.Count.EqualTo(1));
+            }
+
+            test.component.Dispose();
+
+            foreach (var track in stream.GetTracks())
+            {
+                track.Dispose();
+            }
+
+            stream.Dispose();
         }
     }
 }

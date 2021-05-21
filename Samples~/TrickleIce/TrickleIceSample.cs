@@ -24,10 +24,12 @@ class TrickleIceSample : MonoBehaviour
     [SerializeField] private Transform candidateParent;
     [SerializeField] private ToggleGroup iceTransportOption;
     [SerializeField] private Slider candidatePoolSizeSlider;
+    [SerializeField] private Text candidatePoolSizeText;
+
 #pragma warning restore 0649
 
     private RTCPeerConnection _pc1;
-
+    private RTCRtpTransceiver _transceiver;
 
     private float beginTime = 0f;
     private Dictionary<GameObject, RTCIceServer> iceServers
@@ -37,11 +39,12 @@ class TrickleIceSample : MonoBehaviour
 
     private void Awake()
     {
-        WebRTC.Initialize(WebRTCSettings.EncoderType);
+        WebRTC.Initialize(WebRTCSettings.EncoderType, WebRTCSettings.LimitTextureSize);
         addServerButton.onClick.AddListener(OnAddServer);
         removeServerButton.onClick.AddListener(OnRemoveServer);
         resetToDefaultButton.onClick.AddListener(OnResetToDefault);
         gatherCandidatesButton.onClick.AddListener(OnGatherCandidate);
+        candidatePoolSizeSlider.onValueChanged.AddListener(OnChangedCandidatePoolSize);
     }
 
     private void OnDestroy()
@@ -163,6 +166,12 @@ class TrickleIceSample : MonoBehaviour
         }
     }
 
+    private void OnChangedCandidatePoolSize(float value)
+    {
+        int value_ = (int)value;
+        candidatePoolSizeText.text = value_.ToString();
+    }
+
     private void OnGatherCandidate()
     {
         foreach (Transform child in candidateParent)
@@ -175,7 +184,7 @@ class TrickleIceSample : MonoBehaviour
         _pc1 = new RTCPeerConnection(ref configuration);
         _pc1.OnIceCandidate = OnIceCandidate;
         _pc1.OnIceGatheringStateChange = OnIceGatheringStateChange;
-
+        _transceiver = _pc1.AddTransceiver(TrackKind.Video);
         StartCoroutine(CreateOffer(_pc1));
     }
 
@@ -243,6 +252,7 @@ class TrickleIceSample : MonoBehaviour
             }
         }
 
+        _transceiver.Dispose();
         _pc1.Close();
         _pc1 = null;
         gatherCandidatesButton.interactable = true;

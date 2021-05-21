@@ -24,24 +24,6 @@ namespace Unity.WebRTC.RuntimeTest
         }
 
         [Test]
-        public void GraphicsFormat()
-        {
-            var graphicsFormat = WebRTC.GetSupportedGraphicsFormat(SystemInfo.graphicsDeviceType);
-            var renderTextureFormat = WebRTC.GetSupportedRenderTextureFormat(SystemInfo.graphicsDeviceType);
-            var textureFormat = WebRTC.GetSupportedTextureFormat(SystemInfo.graphicsDeviceType);
-
-            var rt = new RenderTexture(10, 10, 0, renderTextureFormat);
-            rt.Create();
-            Assert.That(rt.graphicsFormat, Is.EqualTo(graphicsFormat));
-
-            var tx = new Texture2D(10, 10, textureFormat, false);
-            Assert.That(tx.graphicsFormat, Is.EqualTo(graphicsFormat));
-
-            Object.DestroyImmediate(rt);
-            Object.DestroyImmediate(tx);
-        }
-
-        [Test]
         public void Construct()
         {
             var width = 256;
@@ -71,7 +53,7 @@ namespace Unity.WebRTC.RuntimeTest
         }
 
         [Test]
-        public void ConstructorThrowsException()
+        public void ConstructorThrowsExceptionWhenInvalidGraphicsFormat()
         {
             var width = 256;
             var height = 256;
@@ -80,6 +62,21 @@ namespace Unity.WebRTC.RuntimeTest
             rt.Create();
 
             Assert.That(() => { new VideoStreamTrack("video", rt); }, Throws.TypeOf<ArgumentException>());
+            Object.DestroyImmediate(rt);
+        }
+
+        [Test]
+        [UnityPlatform(RuntimePlatform.Android)]
+        public void ConstructThrowsExceptionWhenSmallTexture()
+        {
+            var width = 50;
+            var height = 50;
+            var format = WebRTC.GetSupportedRenderTextureFormat(SystemInfo.graphicsDeviceType);
+            var rt = new RenderTexture(width, height, 0, format);
+            rt.Create();
+
+            Assert.That(() => { new VideoStreamTrack("video", rt); }, Throws.TypeOf<ArgumentException>());
+
             Object.DestroyImmediate(rt);
         }
 
@@ -130,6 +127,7 @@ namespace Unity.WebRTC.RuntimeTest
             var camObj = new GameObject("Camera");
             var cam = camObj.AddComponent<Camera>();
             var track = cam.CaptureStreamTrack(1280, 720, 1000000);
+            Assert.That(track, Is.Not.Null);
             yield return new WaitForSeconds(0.1f);
             track.Dispose();
             // wait for disposing video track.
@@ -137,6 +135,18 @@ namespace Unity.WebRTC.RuntimeTest
 
             Object.DestroyImmediate(camObj);
         }
+
+        [Test]
+        [Category("MediaStreamTrack")]
+        public void CaptureStreamTrackThrowExeption()
+        {
+            var camObj = new GameObject("Camera");
+            var cam = camObj.AddComponent<Camera>();
+            Assert.That(() => cam.CaptureStreamTrack(0, 0, 1000000), Throws.ArgumentException);
+
+            Object.DestroyImmediate(camObj);
+        }
+
 
         [Test]
         [Category("MediaStreamTrack")]

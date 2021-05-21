@@ -33,7 +33,7 @@ class MungeSDPSample : MonoBehaviour
 
     private void Awake()
     {
-        WebRTC.Initialize(WebRTCSettings.EncoderType);
+        WebRTC.Initialize(WebRTCSettings.EncoderType, WebRTCSettings.LimitTextureSize);
     }
 
     private void OnDestroy()
@@ -208,6 +208,9 @@ class MungeSDPSample : MonoBehaviour
         receiveVideoStream.Dispose();
         receiveVideoStream = null;
         receiveImage.texture = null;
+
+        offerSdpInput.text = string.Empty;
+        answerSdpInput.text = string.Empty;
 
         pcLocal.Close();
         pcRemote.Close();

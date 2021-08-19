@@ -13,8 +13,8 @@ namespace Unity.WebRTC.RuntimeTest
         [SetUp]
         public void SetUp()
         {
-            var value = TestHelper.HardwareCodecSupport();
-            WebRTC.Initialize(value ? EncoderType.Hardware : EncoderType.Software);
+            var type = TestHelper.HardwareCodecSupport() ? EncoderType.Hardware : EncoderType.Software;
+            WebRTC.Initialize(type: type, limitTextureSize:true, forTest:true);
         }
 
         [TearDown]
@@ -29,6 +29,17 @@ namespace Unity.WebRTC.RuntimeTest
         {
             var stream = new MediaStream();
             Assert.That(stream, Is.Not.Null);
+            stream.Dispose();
+        }
+
+        [Test]
+        [Category("MediaStream")]
+        public void EqualId()
+        {
+            var guid = Guid.NewGuid().ToString();
+            var stream = new MediaStream(WebRTC.Context.CreateMediaStream(guid));
+            Assert.That(stream, Is.Not.Null);
+            Assert.That(stream.Id, Is.EqualTo(guid));
             stream.Dispose();
         }
 
@@ -64,11 +75,24 @@ namespace Unity.WebRTC.RuntimeTest
             var rt = new UnityEngine.RenderTexture(width, height, 0, format);
             rt.Create();
             var stream = new MediaStream();
-            var track = new VideoStreamTrack("video", rt);
+            var track = new VideoStreamTrack(rt);
+
+            bool isCalledOnAddTrack = false;
+            bool isCalledOnRemoveTrack = false;
+
+            stream.OnAddTrack = e =>
+            {
+                Assert.That(e.Track, Is.EqualTo(track));
+                isCalledOnAddTrack = true;
+            };
+            stream.OnRemoveTrack = e =>
+            {
+                Assert.That(e.Track, Is.EqualTo(track));
+                isCalledOnRemoveTrack = true;
+            };
 
             // wait for the end of the initialization for encoder on the render thread.
             yield return 0;
-
             Assert.That(track.Kind, Is.EqualTo(TrackKind.Video));
             Assert.That(stream.GetVideoTracks(), Has.Count.EqualTo(0));
             Assert.That(stream.AddTrack(track), Is.True);
@@ -76,19 +100,23 @@ namespace Unity.WebRTC.RuntimeTest
             Assert.That(stream.GetVideoTracks(), Has.All.Not.Null);
             Assert.That(stream.RemoveTrack(track), Is.True);
             Assert.That(stream.GetVideoTracks(), Has.Count.EqualTo(0));
+
+            var op1 = new WaitUntilWithTimeout(() => isCalledOnAddTrack, 5000);
+            yield return op1;
+            var op2 = new WaitUntilWithTimeout(() => isCalledOnRemoveTrack, 5000);
+            yield return op2;
+
             track.Dispose();
-            // wait for disposing video track.
-            yield return 0;
 
             stream.Dispose();
             Object.DestroyImmediate(rt);
         }
 
         [Test]
-        public void AddAndRemoveAudioStreamTrack()
+        public void AddAndRemoveAudioTrack()
         {
             var stream = new MediaStream();
-            var track = new AudioStreamTrack("audio");
+            var track = new AudioStreamTrack();
             Assert.That(TrackKind.Audio, Is.EqualTo(track.Kind));
             Assert.That(stream.GetAudioTracks(), Has.Count.EqualTo(0));
             Assert.That(stream.AddTrack(track), Is.True);
@@ -122,44 +150,6 @@ namespace Unity.WebRTC.RuntimeTest
             Object.DestroyImmediate(camObj);
         }
 
-        [Test]
-        public void AddAndRemoveAudioStream()
-        {
-            var audioStream = Audio.CaptureStream();
-            Assert.That(audioStream.GetAudioTracks(), Has.Count.EqualTo(1));
-            Assert.That(audioStream.GetVideoTracks(), Has.Count.EqualTo(0));
-            Assert.That(audioStream.GetTracks().ToList(),
-                Has.Count.EqualTo(1).And.All.InstanceOf<AudioStreamTrack>());
-            foreach (var track in audioStream.GetTracks())
-            {
-                track.Dispose();
-            }
-            audioStream.Dispose();
-        }
-
-        [UnityTest]
-        [Timeout(5000)]
-        public IEnumerator AddAndRemoveAudioMediaTrack()
-        {
-            RTCConfiguration config = default;
-            config.iceServers = new[]
-            {
-                new RTCIceServer {urls = new[] {"stun:stun.l.google.com:19302"}}
-            };
-            var audioStream = Audio.CaptureStream();
-            var test = new MonoBehaviourTest<SignalingPeers>();
-            test.component.SetStream(audioStream);
-            yield return test;
-            test.component.Dispose();
-            Assert.That(audioStream.GetTracks().ToList(),
-                Has.Count.EqualTo(1).And.All.InstanceOf<AudioStreamTrack>());
-            foreach (var track in audioStream.GetTracks())
-            {
-                track.Dispose();
-            }
-            audioStream.Dispose();
-        }
-
         [UnityTest]
         [Timeout(5000)]
         public IEnumerator CaptureStream()
@@ -167,10 +157,9 @@ namespace Unity.WebRTC.RuntimeTest
             var camObj = new GameObject("Camera");
             var cam = camObj.AddComponent<Camera>();
             var videoStream = cam.CaptureStream(1280, 720, 1000000);
-            yield return new WaitForSeconds(0.1f);
 
             var test = new MonoBehaviourTest<SignalingPeers>();
-            test.component.SetStream(videoStream);
+            test.component.AddStream(0, videoStream);
             yield return test;
             yield return new WaitForSeconds(0.1f);
             test.component.Dispose();
@@ -185,19 +174,23 @@ namespace Unity.WebRTC.RuntimeTest
 
             videoStream.Dispose();
             Object.DestroyImmediate(camObj);
+            Object.DestroyImmediate(test.gameObject);
         }
 
         [UnityTest]
         [Timeout(5000)]
         public IEnumerator SenderGetStats()
         {
+            if (SystemInfo.processorType == "Apple M1")
+                Assert.Ignore("todo:: This test will hang up on Apple M1");
+
             var camObj = new GameObject("Camera");
             var cam = camObj.AddComponent<Camera>();
             var videoStream = cam.CaptureStream(1280, 720, 1000000);
             yield return new WaitForSeconds(0.1f);
 
             var test = new MonoBehaviourTest<SignalingPeers>();
-            test.component.SetStream(videoStream);
+            test.component.AddStream(0, videoStream);
             yield return test;
             test.component.CoroutineUpdate();
             yield return new WaitForSeconds(0.1f);
@@ -229,6 +222,7 @@ namespace Unity.WebRTC.RuntimeTest
 
             videoStream.Dispose();
             Object.DestroyImmediate(camObj);
+            Object.DestroyImmediate(test.gameObject);
         }
 
         [UnityTest]
@@ -241,7 +235,7 @@ namespace Unity.WebRTC.RuntimeTest
             yield return new WaitForSeconds(0.1f);
 
             var test = new MonoBehaviourTest<SignalingPeers>();
-            test.component.SetStream(videoStream);
+            test.component.AddStream(0, videoStream);
             yield return test;
             test.component.CoroutineUpdate();
             yield return new WaitForSeconds(0.1f);
@@ -271,6 +265,7 @@ namespace Unity.WebRTC.RuntimeTest
 
             videoStream.Dispose();
             Object.DestroyImmediate(camObj);
+            Object.DestroyImmediate(test.gameObject);
         }
 
         [UnityTest]
@@ -283,7 +278,7 @@ namespace Unity.WebRTC.RuntimeTest
             yield return new WaitForSeconds(0.1f);
 
             var test = new MonoBehaviourTest<SignalingPeers>();
-            test.component.SetStream(videoStream);
+            test.component.AddStream(0, videoStream);
             yield return test;
             test.component.CoroutineUpdate();
             yield return new WaitForSeconds(0.1f);
@@ -313,6 +308,7 @@ namespace Unity.WebRTC.RuntimeTest
 
             videoStream.Dispose();
             Object.DestroyImmediate(camObj);
+            Object.DestroyImmediate(test.gameObject);
         }
 
         // todo::(kazuki) Test execution timed out on linux standalone
@@ -327,7 +323,7 @@ namespace Unity.WebRTC.RuntimeTest
             yield return new WaitForSeconds(0.1f);
 
             var test = new MonoBehaviourTest<SignalingPeers>();
-            test.component.SetStream(videoStream);
+            test.component.AddStream(0, videoStream);
             yield return test;
             test.component.CoroutineUpdate();
             yield return new WaitForSeconds(0.1f);
@@ -351,7 +347,7 @@ namespace Unity.WebRTC.RuntimeTest
             var format = WebRTC.GetSupportedRenderTextureFormat(SystemInfo.graphicsDeviceType);
             var rt = new UnityEngine.RenderTexture(width, height, 0, format);
             rt.Create();
-            var track2 = new VideoStreamTrack("video2", rt);
+            var track2 = new VideoStreamTrack(rt);
             yield return 0;
 
             Assert.That(videoStream.AddTrack(track2), Is.True);
@@ -373,22 +369,23 @@ namespace Unity.WebRTC.RuntimeTest
             videoStream.Dispose();
             Object.DestroyImmediate(camObj);
             Object.DestroyImmediate(rt);
+            Object.DestroyImmediate(test.gameObject);
         }
 
         [UnityTest]
         [Timeout(5000)]
         public IEnumerator ReceiverGetStreams()
         {
-            var audioTrack = new AudioStreamTrack("audio");
-            var stream = new MediaStream(WebRTC.Context.CreateMediaStream("audiostream"));
+            var audioTrack = new AudioStreamTrack();
+            var stream = new MediaStream();
             stream.AddTrack(audioTrack);
             yield return 0;
 
             var test = new MonoBehaviourTest<SignalingPeers>();
-            test.component.SetStream(stream);
+            test.component.AddStream(0, stream);
             yield return test;
 
-            foreach (var receiver in test.component.GetReceivers(1))
+            foreach (var receiver in test.component.GetPeerReceivers(1))
             {
                 Assert.That(receiver.Streams, Has.Count.EqualTo(1));
             }
@@ -401,6 +398,7 @@ namespace Unity.WebRTC.RuntimeTest
             }
 
             stream.Dispose();
+            Object.DestroyImmediate(test.gameObject);
         }
     }
 }

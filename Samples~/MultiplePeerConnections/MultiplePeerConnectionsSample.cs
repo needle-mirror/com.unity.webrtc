@@ -88,19 +88,19 @@ namespace Unity.WebRTC.Samples
             pc1Remote = new RTCPeerConnection(ref configuration);
             pc1Remote.OnTrack = e =>
             {
-                if (e.Track is VideoStreamTrack videoTrack && !videoTrack.IsDecoderInitialized)
+                if (e.Track is VideoStreamTrack videoTrack)
                 {
-                    receiveImage1.texture = videoTrack.InitializeReceiver(streamingSize.x, streamingSize.y);
+                    videoTrack.OnVideoReceived += tex =>
+                    {
+                        receiveImage1.texture = tex;
+                    };
                 }
 
                 if (e.Track is AudioStreamTrack audioTrack)
                 {
-                    audioTrack.OnAudioReceived += clip =>
-                    {
-                        receiveAudio1.clip = clip;
-                        receiveAudio1.loop = true;
-                        receiveAudio1.Play();
-                    };
+                    receiveAudio1.SetTrack(audioTrack);
+                    receiveAudio1.loop = true;
+                    receiveAudio1.Play();
                 }
             };
             pc1Local.OnIceCandidate = candidate => pc1Remote.AddIceCandidate(candidate);
@@ -111,19 +111,19 @@ namespace Unity.WebRTC.Samples
             pc2Remote = new RTCPeerConnection(ref configuration);
             pc2Remote.OnTrack = e =>
             {
-                if (e.Track is VideoStreamTrack videoTrack && !videoTrack.IsDecoderInitialized)
+                if (e.Track is VideoStreamTrack videoTrack)
                 {
-                    receiveImage2.texture = videoTrack.InitializeReceiver(streamingSize.x, streamingSize.y);
+                    videoTrack.OnVideoReceived += tex =>
+                    {
+                        receiveImage2.texture = tex;
+                    };
                 }
 
                 if (e.Track is AudioStreamTrack audioTrack)
                 {
-                    audioTrack.OnAudioReceived += clip =>
-                    {
-                        receiveAudio2.clip = clip;
-                        receiveAudio2.loop = true;
-                        receiveAudio2.Play();
-                    };
+                    receiveAudio2.SetTrack(audioTrack);
+                    receiveAudio2.loop = true;
+                    receiveAudio2.Play();
                 }
             };
             pc2Local.OnIceCandidate = candidate => pc2Remote.AddIceCandidate(candidate);

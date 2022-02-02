@@ -4,22 +4,53 @@ All notable changes to the webrtc package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [2.4.0-exp.5] - 2022-02-02
+
+### Added
+
+- Added the ability to execute pending native tasks manually from the main thread.
+- Added support for sending basic native collections (`NativeArray<T>`, `NativeSlice<T>` and `NativeArray<T>.ReadOnly`) to `RTCDataChannel`.
+- Added a property `RTCRtpTransceiver.Mid`.
+- Added an argument `enableNativeLog` for `WebRTC.Initialize` method.
+- Added "E2ELatency" scene in the sample.
+- Added a constuctor without arguments in `AudioStreamTrack` class.
+
+### Changed
+
+- Upgraded libwebrtc [m92](https://groups.google.com/g/discuss-webrtc/c/hks5zneZJbo/m/Z-p4AfCrCQAJ).
+- Changed compiler for native plugin on Windows (MSVC to Clang).
+- Changed to use `OnAudioFilterRead` method in `MonoBehaviour` for audio rendering.
+- Changed resizing texture dynamically on receiver side when using a property `scaleResolutionDownBy` in `RTCRtpEncodingParameters` class.
+- Changed the exception type `ObjectDisposedException` when accessing instance after call Dispose method. 
+
+### Fixed
+
+- Fixed a crash bug where initializing video streaming on Unity Editor on Apple Silicon.
+- Fixed a crash bug where configuring OpenGL Core as a graphics API on Unity Editor on windows.
+- Fixed a bug that sending stereo audio produces mono clip on some peers.
+- Fixed a crach bug where using Full HD resolution with HWA enabled on macOS(Intel).
+- Fixed a crash bug where using Full HD resolution with HWA enabled on Windows.
+
+### Removed
+
+- Removed iOS Simulator (x86_64) support for make simple building process for iOS.
+
 ## [2.4.0-exp.4] - 2021-08-19
 
 ### Added
 
 - mac M1 architecture native support
 - Audio stream rendering support
-- Add two scenes (`Audio` and `MultiAudioReceive`) into the package sample
+- Add two scenes ("Audio" and "MultiAudioReceive") into the package sample
 - Add `RTCAudioSourceStats` and `VideoSourceStats` class
 
 ### Changed
 
-- Add the audio waveform graph to `MultiplePeerConnections` scene in the sample
+- Add the audio waveform graph to "MultiplePeerConnections" scene in the sample
 
-### Fixed 
+### Fixed
 
-- Fix the crash on Windows with Vulkan API on `VideoReceieSample` 
+- Fix the crash on Windows with Vulkan API on the "VideoReceive" sample
 - Fix the crash when calling `WebRTC.Initialize` twice
 - Fix the error in the build process on `Unity2021.2`
 
@@ -27,7 +58,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Add options of the incoming video in `VideoReceive` sample to test video capture modules on the device
+- Add options of the incoming video in "VideoReceive" sample to test video capture modules on the device
 
 ### Fixed
 
@@ -45,7 +76,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Add the validation of the streaming texture size on Android
-- Add the validation of the  streaming when using NvCodec 
+- Add the validation of the  streaming when using NvCodec
 - Use the software video decoder when disabling hardware acceleration
 
 ## [2.4.0-exp.1] - 2021-04-23
@@ -55,7 +86,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Android ARM64 platform support
 - Added a sample scene "Menu" which developers can go back and forth between sample scenes
 - Added a sample scene "PerfectNegotiation"
-- Added the software encoder on Linux support when using OpenGL Core graphics API 
+- Added the software encoder on Linux support when using OpenGL Core graphics API
 - Added the `RestartIce` method to the `RTCPeerConnection` class
 - Added the `Streams` property to the `RTCRtpReceiver` class
 
@@ -101,13 +132,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [2.3.0-preview] - 2020-12-28
 
-### Added 
+### Added
 
 - Supported iOS platform
 - Supported H.264 HW decoder (VideoToolbox) on macOS
 - Added `GetCapabilities` method to the `RTCRtpSender` class and the `RTCRtpReceiver` class
 - Added `SetCodecPreferences` method to the `RTCRtpTransceiver` class
-- Added two samples (`ChangeCodecs`, `TrickleIce`)
+- Added two samples ("ChangeCodecs", "TrickleIce")
 - Added properties to the `RTCIceCandidate` class
 - Added properties tp the `RTCDataChannelInit` class
 
@@ -136,7 +167,7 @@ public RTCDataChannel CreateDataChannel(string label RTCDataChannelInit options 
 
 ### Added
 
-- Added a `Bandwidth` sample
+- Added a "Bandwidth" sample
 
 ### Fixed
 
@@ -144,7 +175,7 @@ public RTCDataChannel CreateDataChannel(string label RTCDataChannelInit options 
 - Fixed a crash bug when the application ended using Vulkan API
 - Fixed a crash bug of the standalone build using Vulkan API
 - Fixed bugs that occur on Linux not installed NVIDIA driver
-- Fixed a bug of the `VideoReceive` sample
+- Fixed a bug of the "VideoReceive" sample
 
 ## [2.2.0-preview] - 2020-10-26
 
@@ -154,13 +185,13 @@ public RTCDataChannel CreateDataChannel(string label RTCDataChannelInit options 
 - Hardware encoder (VideoToolbox) support on macOS
 - Vulkan API support on Linux and Windows
 - Linux IL2CPP support
-- Add WebRTC samples (`MultiplePeerConnections`, `MultiVideoReceive`, `MungeSDP`, `VideoReceive`)
+- Add WebRTC samples ("MultiplePeerConnections", "MultiVideoReceive", "MungeSDP", "VideoReceive")
 
 ### Changed
 
 - Upgrade libwebrtc m85
 - Upgrade NVIDIA Codec SDK 9.1
-- Changed `RTCPeerConnection` behaviour to throw exceptions when pass invalid arguments to `SetLocalDescription`, `SetRemoteDescription` 
+- Changed `RTCPeerConnection` behaviour to throw exceptions when pass invalid arguments to `SetLocalDescription`, `SetRemoteDescription`
 
 ## [2.1.3-preview] - 2020-09-28
 

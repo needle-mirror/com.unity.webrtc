@@ -1,9 +1,11 @@
+using System;
+using System.Collections;
+using System.Linq;
+
 using NUnit.Framework;
 using UnityEngine;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
 using UnityEngine.TestTools;
+using Unity.Collections;
 
 namespace Unity.WebRTC.RuntimeTest
 {
@@ -26,14 +28,17 @@ namespace Unity.WebRTC.RuntimeTest
         [Timeout(5000)]
         public IEnumerator AddAndRemoveAudioTrack()
         {
-            var audioTrack = new AudioStreamTrack();
             var test = new MonoBehaviourTest<SignalingPeers>();
+            var source = test.gameObject.AddComponent<AudioSource>();
+            source.clip = AudioClip.Create("test", 48000, 2, 48000, false);
+            var audioTrack = new AudioStreamTrack(source);
             var sender = test.component.AddTrack(0, audioTrack);
             yield return test;
             Assert.That(test.component.RemoveTrack(0, sender), Is.EqualTo(RTCErrorType.None));
             yield return new WaitUntil(() => test.component.NegotiationCompleted());
             test.component.Dispose();
-            Object.DestroyImmediate(test.gameObject);
+            UnityEngine.Object.DestroyImmediate(source.clip);
+            UnityEngine.Object.DestroyImmediate(test.gameObject);
         }
 
         [Ignore("AudioManager is disabled when batch mode on CI")]
@@ -62,9 +67,9 @@ namespace Unity.WebRTC.RuntimeTest
             var audioTrack = receiver.Track as AudioStreamTrack;
             Assert.That(audioTrack, Is.Not.Null);
 
-            yield return new WaitUntil(() => audioTrack.Renderer != null);
-            Assert.That(audioTrack.Renderer, Is.Not.Null);
-            Assert.That(audioTrack.Renderer.channels, Is.EqualTo(channels));
+            yield return new WaitUntil(() => audioTrack.Source != null);
+            Assert.That(audioTrack.Source, Is.Not.Null);
+            Assert.That(audioTrack.Source.clip.channels, Is.EqualTo(channels));
 
 
             // second track
@@ -79,30 +84,65 @@ namespace Unity.WebRTC.RuntimeTest
             audioTrack = receiver.Track as AudioStreamTrack;
             Assert.That(audioTrack, Is.Not.Null);
 
-            yield return new WaitUntil(() => audioTrack.Renderer != null);
-            Assert.That(audioTrack.Renderer, Is.Not.Null);
-            Assert.That(audioTrack.Renderer.channels, Is.EqualTo(channels));
+            yield return new WaitUntil(() => audioTrack.Source != null);
+            Assert.That(audioTrack.Source, Is.Not.Null);
+            Assert.That(audioTrack.Source.clip.channels, Is.EqualTo(channels));
 
             test.component.Dispose();
-            Object.DestroyImmediate(test.gameObject);
-            Object.DestroyImmediate(obj);
+            UnityEngine.Object.DestroyImmediate(test.gameObject);
+            UnityEngine.Object.DestroyImmediate(obj);
         }
 
 
         [Test]
         public void AudioStreamTrackInstantiateOnce()
         {
-            var track = new AudioStreamTrack();
+            GameObject obj = new GameObject("audio");
+            AudioSource source = obj.AddComponent<AudioSource>();
+            source.clip = AudioClip.Create("test", 48000, 2, 48000, false);
+            var track = new AudioStreamTrack(source);
             track.Dispose();
+            UnityEngine.Object.DestroyImmediate(source.clip);
+            UnityEngine.Object.DestroyImmediate(obj);
         }
 
         [Test]
         public void AudioStreamTrackInstantiateMultiple()
         {
-            var track1 = new AudioStreamTrack();
-            var track2 = new AudioStreamTrack();
+            GameObject obj1 = new GameObject("audio1");
+            AudioSource source1 = obj1.AddComponent<AudioSource>();
+            source1.clip = AudioClip.Create("test1", 48000, 2, 48000, false);
+            GameObject obj2 = new GameObject("audio2");
+            AudioSource source2 = obj2.AddComponent<AudioSource>();
+            source2.clip = AudioClip.Create("test2", 48000, 2, 48000, false);
+            var track1 = new AudioStreamTrack(source1);
+            var track2 = new AudioStreamTrack(source2);
             track1.Dispose();
             track2.Dispose();
+            UnityEngine.Object.DestroyImmediate(source1.clip);
+            UnityEngine.Object.DestroyImmediate(source2.clip);
+            UnityEngine.Object.DestroyImmediate(obj1);
+            UnityEngine.Object.DestroyImmediate(obj2);
+        }
+
+        [Test]
+        public void AudioStreamTrackSetData()
+        {
+            GameObject obj = new GameObject("audio");
+            AudioSource source = obj.AddComponent<AudioSource>();
+            source.clip = AudioClip.Create("test1", 48000, 2, 48000, false);
+            var track = new AudioStreamTrack(source);
+            Assert.That(() => track.SetData(null, 0, 0), Throws.ArgumentNullException);
+
+            float[] data = new float[2048];
+            Assert.That(() => track.SetData(data, 0, 0), Throws.ArgumentException);
+
+            Assert.That(() => track.SetData(data, 1, 0), Throws.ArgumentException);
+            Assert.That(() => track.SetData(data, 0, 48000), Throws.ArgumentException);
+            Assert.That(() => track.SetData(data, 1, 48000), Throws.Nothing);
+            track.Dispose();
+            UnityEngine.Object.DestroyImmediate(source.clip);
+            UnityEngine.Object.DestroyImmediate(obj);
         }
 
         [Test]
@@ -115,21 +155,18 @@ namespace Unity.WebRTC.RuntimeTest
             var track = new AudioStreamTrack(source);
             source.Play();
             track.Dispose();
-            Object.DestroyImmediate(obj);
+            UnityEngine.Object.DestroyImmediate(source.clip);
+            UnityEngine.Object.DestroyImmediate(obj);
         }
 
         [Test]
         public void AudioStreamRenderer()
         {
-            var renderer = new AudioStreamTrack.AudioStreamRenderer("test", 48000, 2);
-            Assert.That(renderer.clip, Is.Not.Null);
-
-            for (int i = 0; i < 300; i++)
-            {
-                float[] data = new float[2048];
-                renderer.SetData(data);
-            }
+            var obj = new GameObject("audio");
+            var renderer = new AudioStreamTrack.AudioStreamRenderer();
+            renderer.Source = obj.AddComponent<AudioSource>();
             renderer.Dispose();
+            UnityEngine.Object.DestroyImmediate(obj);
         }
     }
 }

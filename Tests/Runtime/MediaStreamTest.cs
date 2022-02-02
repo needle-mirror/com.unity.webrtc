@@ -49,7 +49,7 @@ namespace Unity.WebRTC.RuntimeTest
         {
             var stream = new MediaStream();
             stream.Dispose();
-            Assert.That(() => { var id = stream.Id; }, Throws.TypeOf<InvalidOperationException>());
+            Assert.That(() => { var id = stream.Id; }, Throws.TypeOf<ObjectDisposedException>());
         }
 
         [Test]
@@ -115,8 +115,11 @@ namespace Unity.WebRTC.RuntimeTest
         [Test]
         public void AddAndRemoveAudioTrack()
         {
+            var obj = new GameObject("audio");
+            var source = obj.AddComponent<AudioSource>();
+            source.clip = AudioClip.Create("test", 480, 2, 48000, false);
             var stream = new MediaStream();
-            var track = new AudioStreamTrack();
+            var track = new AudioStreamTrack(source);
             Assert.That(TrackKind.Audio, Is.EqualTo(track.Kind));
             Assert.That(stream.GetAudioTracks(), Has.Count.EqualTo(0));
             Assert.That(stream.AddTrack(track), Is.True);
@@ -126,6 +129,8 @@ namespace Unity.WebRTC.RuntimeTest
             Assert.That(stream.GetAudioTracks(), Has.Count.EqualTo(0));
             track.Dispose();
             stream.Dispose();
+            Object.DestroyImmediate(source.clip);
+            Object.DestroyImmediate(obj);
         }
 
         [UnityTest]
@@ -292,10 +297,60 @@ namespace Unity.WebRTC.RuntimeTest
                 Assert.That(parameters.encodings, Has.Length.GreaterThan(0).And.All.Not.Null);
                 const uint framerate = 20;
                 parameters.encodings[0].maxFramerate = framerate;
-                RTCErrorType error = sender.SetParameters(parameters);
-                Assert.That(error, Is.EqualTo(RTCErrorType.None));
+                RTCError error = sender.SetParameters(parameters);
+                Assert.That(error.errorType, Is.EqualTo(RTCErrorType.None));
                 var parameters2 = sender.GetParameters();
                 Assert.That(parameters2.encodings[0].maxFramerate, Is.EqualTo(framerate));
+            }
+
+            test.component.Dispose();
+            foreach (var track in videoStream.GetTracks())
+            {
+                track.Dispose();
+            }
+            // wait for disposing video track.
+            yield return 0;
+
+            videoStream.Dispose();
+            Object.DestroyImmediate(camObj);
+            Object.DestroyImmediate(test.gameObject);
+        }
+
+        [UnityTest]
+        [Timeout(5000)]
+        [UnityPlatform(include = new[] {RuntimePlatform.Android})]
+        public IEnumerator SetParametersReturnErrorIfInvalidTextureResolution()
+        {
+            var camObj = new GameObject("Camera");
+            var cam = camObj.AddComponent<Camera>();
+            var videoStream = cam.CaptureStream(1280, 720, 1000000);
+            yield return new WaitForSeconds(0.1f);
+
+            var test = new MonoBehaviourTest<SignalingPeers>();
+            test.component.AddStream(0, videoStream);
+            yield return test;
+            test.component.CoroutineUpdate();
+            yield return new WaitForSeconds(0.1f);
+
+            var senders = test.component.GetPeerSenders(0);
+            Assert.That(senders, Has.Count.GreaterThan(0));
+
+            foreach(var sender in senders)
+            {
+                var parameters = sender.GetParameters();
+                Assert.That(parameters.encodings, Has.Length.GreaterThan(0).And.All.Not.Null);
+                const uint nonErrorScale = 2;
+                parameters.encodings[0].scaleResolutionDownBy = nonErrorScale;
+                RTCError error = sender.SetParameters(parameters);
+                Assert.That(error.errorType, Is.EqualTo(RTCErrorType.None));
+                var parameters2 = sender.GetParameters();
+                Assert.That(parameters2.encodings[0].scaleResolutionDownBy, Is.EqualTo(nonErrorScale));
+
+                // limit texture size by WebRTC.ValidateTextureSize
+                const uint errorScale = 8;
+                parameters2.encodings[0].scaleResolutionDownBy = errorScale;
+                RTCError error2 = sender.SetParameters(parameters2);
+                Assert.That(error2.errorType, Is.EqualTo(RTCErrorType.InvalidRange));
             }
 
             test.component.Dispose();
@@ -376,7 +431,10 @@ namespace Unity.WebRTC.RuntimeTest
         [Timeout(5000)]
         public IEnumerator ReceiverGetStreams()
         {
-            var audioTrack = new AudioStreamTrack();
+            var obj = new GameObject("audio");
+            var source = obj.AddComponent<AudioSource>();
+            source.clip = AudioClip.Create("test", 480, 2, 48000, false);
+            var audioTrack = new AudioStreamTrack(source);
             var stream = new MediaStream();
             stream.AddTrack(audioTrack);
             yield return 0;
@@ -399,6 +457,8 @@ namespace Unity.WebRTC.RuntimeTest
 
             stream.Dispose();
             Object.DestroyImmediate(test.gameObject);
+            Object.DestroyImmediate(source.clip);
+            Object.DestroyImmediate(obj);
         }
     }
 }

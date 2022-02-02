@@ -1,4 +1,3 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,12 +16,20 @@ class PeerConnectionSample : MonoBehaviour
     [SerializeField] private Button hangUpButton;
     [SerializeField] private Text localCandidateId;
     [SerializeField] private Text remoteCandidateId;
+    [SerializeField] private Dropdown dropDownProtocol;
 
     [SerializeField] private Camera cam;
     [SerializeField] private RawImage sourceImage;
     [SerializeField] private RawImage receiveImage;
     [SerializeField] private Transform rotateObject;
 #pragma warning restore 0649
+
+    enum ProtocolOption
+    {
+        Default,
+        UDP,
+        TCP
+    }
 
     private RTCPeerConnection _pc1, _pc2;
     private List<RTCRtpSender> pc1Senders;
@@ -74,8 +81,11 @@ class PeerConnectionSample : MonoBehaviour
         {
             if (e.Track is VideoStreamTrack track)
             {
-                receiveImage.texture = track.InitializeReceiver(width, height);
-                receiveImage.color = Color.white;
+                track.OnVideoReceived += tex =>
+                {
+                    receiveImage.texture = tex;
+                    receiveImage.color = Color.white;
+                };
             }
         };
     }
@@ -269,6 +279,20 @@ class PeerConnectionSample : MonoBehaviour
 
     private void OnIceCandidate(RTCPeerConnection pc, RTCIceCandidate candidate)
     {
+        switch((ProtocolOption)dropDownProtocol.value)
+        {
+            case ProtocolOption.Default:
+                break;
+            case ProtocolOption.UDP:
+                if (candidate.Protocol != RTCIceProtocol.Udp)
+                    return;
+                break;
+            case ProtocolOption.TCP:
+                if (candidate.Protocol != RTCIceProtocol.Tcp)
+                    return;
+                break;
+        }
+
         GetOtherPc(pc).AddIceCandidate(candidate);
         Debug.Log($"{GetName(pc)} ICE candidate:\n {candidate.Candidate}");
     }

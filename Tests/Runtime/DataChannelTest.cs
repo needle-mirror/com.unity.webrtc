@@ -2,7 +2,11 @@ using System;
 using UnityEngine.TestTools;
 using NUnit.Framework;
 using System.Collections;
+using System.Diagnostics;
 using Object = UnityEngine.Object;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
+using UnityEngine;
 
 namespace Unity.WebRTC.RuntimeTest
 {
@@ -113,83 +117,236 @@ namespace Unity.WebRTC.RuntimeTest
 
         [UnityTest]
         [Timeout(5000)]
-        public IEnumerator EventsAreSentToOther()
+        public IEnumerator SendAndReceiveMessage()
         {
-            RTCConfiguration config = default;
-            config.iceServers = new[] {new RTCIceServer {urls = new[] {"stun:stun.l.google.com:19302"}}};
-            var peer1 = new RTCPeerConnection(ref config);
-            var peer2 = new RTCPeerConnection(ref config);
-            RTCDataChannel channel2 = null;
+            var test = new MonoBehaviourTest<SignalingPeers>();
+            var label = "test";
 
-            peer1.OnIceCandidate = candidate => { peer2.AddIceCandidate(candidate); };
-            peer2.OnIceCandidate = candidate => { peer1.AddIceCandidate(candidate); };
-            peer2.OnDataChannel = channel => { channel2 = channel; };
+            RTCDataChannel channel1 = test.component.CreateDataChannel(0, label);
+            Assert.That(channel1, Is.Not.Null);
+            yield return test;
 
-            var channel1 = peer1.CreateDataChannel("data");
-            bool channel1Opened = false;
-            bool channel1Closed = false;
-            channel1.OnOpen = () => { channel1Opened = true; };
-            channel1.OnClose = () => { channel1Closed = true; };
-
-            var op1 = peer1.CreateOffer();
+            var op1 = new WaitUntilWithTimeout(() => test.component.GetDataChannelList(1).Count > 0, 5000);
             yield return op1;
-            var desc = op1.Desc;
-            var op2 = peer1.SetLocalDescription(ref desc);
-            yield return op2;
-            var op3 = peer2.SetRemoteDescription(ref desc);
-            yield return op3;
-            var op4 = peer2.CreateAnswer();
-            yield return op4;
-            desc = op4.Desc;
-            var op5 = peer2.SetLocalDescription(ref desc);
-            yield return op5;
-            var op6 = peer1.SetRemoteDescription(ref desc);
-            yield return op6;
+            RTCDataChannel channel2 = test.component.GetDataChannelList(1)[0];
+            Assert.That(channel2, Is.Not.Null);
 
-            var op7 = new WaitUntilWithTimeout(
-                () => peer1.IceConnectionState == RTCIceConnectionState.Connected ||
-                      peer1.IceConnectionState == RTCIceConnectionState.Completed, 5000);
-            yield return op7;
-            Assert.True(op7.IsCompleted);
-            var op8 = new WaitUntilWithTimeout(
-                () => peer2.IceConnectionState == RTCIceConnectionState.Connected ||
-                      peer2.IceConnectionState == RTCIceConnectionState.Completed, 5000);
-            yield return op8;
-            Assert.True(op8.IsCompleted);
-            var op9 = new WaitUntilWithTimeout(() => channel2 != null, 5000);
-            yield return op9;
-            Assert.True(op9.IsCompleted);
+            Assert.That(channel1.ReadyState, Is.EqualTo(RTCDataChannelState.Open));
+            Assert.That(channel2.ReadyState, Is.EqualTo(RTCDataChannelState.Open));
+            Assert.That(channel1.Label, Is.EqualTo(channel2.Label));
+            Assert.That(channel1.Id, Is.EqualTo(channel2.Id));
 
-            Assert.True(channel1Opened);
-            Assert.AreEqual(channel1.Label, channel2.Label);
-            Assert.AreEqual(channel1.Id, channel2.Id);
-
+            // send string
             const string message1 = "hello";
             string message2 = null;
             channel2.OnMessage = bytes => { message2 = System.Text.Encoding.UTF8.GetString(bytes); };
             channel1.Send(message1);
             var op10 = new WaitUntilWithTimeout(() => !string.IsNullOrEmpty(message2), 5000);
             yield return op10;
-            Assert.True(op10.IsCompleted);
-            Assert.AreEqual(message1, message2);
+            Assert.That(op10.IsCompleted, Is.True);
+            Assert.That(message1, Is.EqualTo(message2));
 
+            // send byte array
             byte[] message3 = {1, 2, 3};
             byte[] message4 = null;
             channel2.OnMessage = bytes => { message4 = bytes; };
             channel1.Send(message3);
             var op11 = new WaitUntilWithTimeout(() => message4 != null, 5000);
             yield return op11;
-            Assert.True(op11.IsCompleted);
-            Assert.AreEqual(message3, message4);
+            Assert.That(op11.IsCompleted, Is.True);
+            Assert.That(message3, Is.EqualTo(message4));
 
-            channel1.Close();
-            var op12 = new WaitUntilWithTimeout(() => channel1Closed, 5000);
+            // Native Array
+
+            // Native Arrays that are declared in tests that use IEnumerator seem to have some oddities about them
+            // they tend to dispose themselves on yields so we recreate the array as needed.
+
+            byte[] comparisonBuffer = { 1, 2, 3 };
+            var nativeArrayTestMessageReceiver = default(byte[]);
+
+            using (var message5 = new NativeArray<byte>(comparisonBuffer, Allocator.Temp))
+            {
+                Assert.That(message5.IsCreated, Is.True);
+                // Only needs to be set once as it will be reused.
+                channel2.OnMessage = bytes => { nativeArrayTestMessageReceiver = bytes; };
+                channel1.Send(message5);
+            }
+            var op12 = new WaitUntilWithTimeout(() => nativeArrayTestMessageReceiver != null, 5000);
             yield return op12;
-            Assert.True(op12.IsCompleted);
+            Assert.That(op12.IsCompleted, Is.True);
+            Assert.That(comparisonBuffer, Is.EqualTo(nativeArrayTestMessageReceiver));
 
-            channel2.Close();
-            peer1.Close();
-            peer2.Close();
+            // Native Slice
+            using (var nativeArray = new NativeArray<byte>(comparisonBuffer, Allocator.Temp))
+            {
+                Assert.That(nativeArray.IsCreated, Is.True);
+                var message6 = nativeArray.Slice();
+                nativeArrayTestMessageReceiver = null;
+                channel1.Send(message6);
+            }
+            var op13 = new WaitUntilWithTimeout(() => nativeArrayTestMessageReceiver != null, 5000);
+            yield return op13;
+            Assert.That(op13.IsCompleted, Is.True);
+            Assert.That(comparisonBuffer, Is.EqualTo(nativeArrayTestMessageReceiver));
+
+#if UNITY_2021_1_OR_NEWER
+            // NativeArray.ReadOnly
+            using (var nativeArray = new NativeArray<byte>(comparisonBuffer, Allocator.Temp))
+            {
+                Assert.That(nativeArray.IsCreated, Is.True);
+                var message7 = nativeArray.AsReadOnly();
+                nativeArrayTestMessageReceiver = null;
+                channel1.Send(message7);
+            }
+            var op14 = new WaitUntilWithTimeout(() => nativeArrayTestMessageReceiver != null, 5000);
+            yield return op14;
+            Assert.That(op14.IsCompleted, Is.True);
+            Assert.That(comparisonBuffer, Is.EqualTo(nativeArrayTestMessageReceiver));
+#endif // UNITY_2020_1_OR_NEWER
+
+            test.component.Dispose();
+            Object.DestroyImmediate(test.gameObject);
+        }
+
+        [UnityTest]
+        [Timeout(5000)]
+        public IEnumerator SendAndReceiveMessageWithExecuteTasks()
+        {
+            var test = new MonoBehaviourTest<SignalingPeers>();
+            var label = "test";
+
+            RTCDataChannel channel1 = test.component.CreateDataChannel(0, label);
+            Assert.That(channel1, Is.Not.Null);
+            yield return test;
+
+            var op1 = new WaitUntilWithTimeout(() => test.component.GetDataChannelList(1).Count > 0, 5000);
+            yield return op1;
+            RTCDataChannel channel2 = test.component.GetDataChannelList(1)[0];
+            Assert.That(channel2, Is.Not.Null);
+
+            Assert.That(channel1.ReadyState, Is.EqualTo(RTCDataChannelState.Open));
+            Assert.That(channel2.ReadyState, Is.EqualTo(RTCDataChannelState.Open));
+            Assert.That(channel1.Label, Is.EqualTo(channel2.Label));
+            Assert.That(channel1.Id, Is.EqualTo(channel2.Id));
+
+            // send string
+            const int millisecondTimeout = 5000;
+            const string message1 = "hello";
+            string message2 = null;
+            channel2.OnMessage = bytes => { message2 = System.Text.Encoding.UTF8.GetString(bytes); };
+            channel1.Send(message1);
+            ExecutePendingTasksWithTimeout(ref message2, millisecondTimeout);
+            Assert.That(message1, Is.EqualTo(message2));
+
+            // send byte array
+            byte[] message3 = { 1, 2, 3 };
+            byte[] message4 = null;
+            channel2.OnMessage = bytes => { message4 = bytes; };
+            channel1.Send(message3);
+            ExecutePendingTasksWithTimeout(ref message4, millisecondTimeout);
+            Assert.That(message3, Is.EqualTo(message4));
+
+            // Native Collections Tests
+            Vector3[] structData = { Vector3.one, Vector3.zero, Vector3.up, Vector3.down };
+            using (var nativeArray = new NativeArray<Vector3>(structData, Allocator.Temp))
+            {
+                var nativeArrayTestMessageReceiver = default(byte[]);
+                channel2.OnMessage = bytes => { nativeArrayTestMessageReceiver = bytes; };
+
+                // Native Array
+                var message5 = nativeArray;
+                Assert.That(message5.IsCreated, Is.True);
+                nativeArrayTestMessageReceiver = null;
+                channel1.Send(message5);
+                ExecutePendingTasksWithTimeout(ref nativeArrayTestMessageReceiver, millisecondTimeout);
+                Assert.That(NativeArrayMemCmp(message5, nativeArrayTestMessageReceiver), Is.True, "Elements of the received message are not the same as the original message.");
+
+                // Native Slice
+                var message6 = nativeArray.Slice();
+                nativeArrayTestMessageReceiver = null;
+                channel1.Send(message6);
+                ExecutePendingTasksWithTimeout(ref nativeArrayTestMessageReceiver, millisecondTimeout);
+                Assert.That(NativeArrayMemCmp(message6, nativeArrayTestMessageReceiver), Is.True, "Elements of the received message are not the same as the original message.");
+
+#if UNITY_2021_1_OR_NEWER
+                // NativeArray.ReadOnly
+                var message7 = nativeArray.AsReadOnly();
+                nativeArrayTestMessageReceiver = null;
+                channel1.Send(message7);
+                ExecutePendingTasksWithTimeout(ref nativeArrayTestMessageReceiver, millisecondTimeout);
+                Assert.That(NativeArrayMemCmp(message7, nativeArrayTestMessageReceiver), Is.True, "Elements of the received message are not the same as the original message.");
+#endif // UNITY_2021_1_OR_NEWER
+            }
+
+            test.component.Dispose();
+            Object.DestroyImmediate(test.gameObject);
+        }
+
+        static void ExecutePendingTasksWithTimeout(ref string message, int timeoutInMilliseconds)
+        {
+            Stopwatch watchdog = Stopwatch.StartNew();
+            while(watchdog.ElapsedMilliseconds < timeoutInMilliseconds && message == null)
+            {
+                WebRTC.ExecutePendingTasks(timeoutInMilliseconds);
+            }
+            Assert.That(message, Is.Not.Null, "Message was not received in the allotted time!");
+        }
+
+        static void ExecutePendingTasksWithTimeout(ref byte[] message, int timeoutInMilliseconds)
+        {
+            Stopwatch watchdog = Stopwatch.StartNew();
+            while(watchdog.ElapsedMilliseconds < timeoutInMilliseconds && message == null)
+            {
+                WebRTC.ExecutePendingTasks(timeoutInMilliseconds);
+            }
+            Assert.That(message, Is.Not.Null, "Message was not received in the allotted time!");
+        }
+
+        static unsafe bool NativeArrayMemCmp<T>(NativeArray<T> array, byte[] buffer)
+            where T : struct
+        {
+            if (array.Length * UnsafeUtility.SizeOf<T>() == buffer.Length)
+            {
+                var nativeArrayIntPtr = new IntPtr(array.GetUnsafeReadOnlyPtr());
+                return IntPtrMemCmp(nativeArrayIntPtr, buffer);
+            }
+
+            return false;
+        }
+
+        static unsafe bool NativeArrayMemCmp<T>(NativeSlice<T> array, byte[] buffer)
+            where T : struct
+        {
+            if (array.Length * UnsafeUtility.SizeOf<T>() == buffer.Length)
+            {
+                var nativeArrayIntPtr = new IntPtr(array.GetUnsafeReadOnlyPtr());
+                return IntPtrMemCmp(nativeArrayIntPtr, buffer);
+            }
+
+            return false;
+        }
+
+#if UNITY_2021_1_OR_NEWER
+        static unsafe bool NativeArrayMemCmp<T>(NativeArray<T>.ReadOnly array, byte[] buffer)
+            where T : struct
+        {
+            if (array.Length * UnsafeUtility.SizeOf<T>() == buffer.Length)
+            {
+                var nativeArrayIntPtr = new IntPtr(array.GetUnsafeReadOnlyPtr());
+                return IntPtrMemCmp(nativeArrayIntPtr, buffer);
+            }
+
+            return false;
+        }
+#endif // UNITY_2021_1_OR_NEWER
+
+        static unsafe bool IntPtrMemCmp(IntPtr ptr, byte[] buffer)
+        {
+            fixed (byte* bufPtr = buffer)
+            {
+                var bufIntPtr = new IntPtr(bufPtr);
+                return UnsafeUtility.MemCmp((void*)ptr, (void*)bufIntPtr, buffer.Length) == 0;
+            }
         }
     }
 }
